@@ -62,10 +62,10 @@ const botDescription = [
   "📈 Statistikalarni ko‘ring",
   "🎯 O‘z ustingizda ishlang",
   "",
-  "Rasmiy Telegram AI yordamchi bot.",
+  "Rasmiy Private AI yordamchi bot.",
 ].join("\n");
 const startReply = [
-  "👋 Salom, Private ilovasining rasmiy Telegram AI yordamchi botiga xush kelibsiz.",
+  "👋 Salom, Private ilovasining rasmiy Private AI yordamchi botiga xush kelibsiz.",
   "",
   "✨ Private — moliya, rejalar, odatlar va shaxsiy rivojlanishni bitta joyda boshqarish uchun yaratilgan zamonaviy platforma.",
   "",
@@ -79,8 +79,6 @@ const feedbackPromptReply = "Taklif yoki shikoyatingizni yozing.";
 const feedbackAcceptedReply = "Taklif/shikoyatingiz qabul qilindi ✅";
 const basicKeyboard: TelegramReplyKeyboardMarkup = {
   keyboard: [
-    ["Dashboard", "Moliya"],
-    ["Rejalar", "Xulosalar"],
     ["Taklif/Shikoyatlar"],
     ["Chiqish"],
   ],
@@ -88,8 +86,6 @@ const basicKeyboard: TelegramReplyKeyboardMarkup = {
 };
 const mainKeyboard: TelegramReplyKeyboardMarkup = {
   keyboard: [
-    ["Dashboard", "Moliya"],
-    ["Rejalar", "Xulosalar"],
     ["Taklif/Shikoyatlar"],
     [{ text: "Web App", web_app: { url: webAppUrl } }],
     ["Chiqish"],
