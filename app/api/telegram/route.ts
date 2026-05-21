@@ -25,17 +25,56 @@ type TelegramSendMessageResponse = {
   result?: unknown;
 };
 
+type TelegramApiResponse = {
+  ok: boolean;
+  description?: string;
+  result?: unknown;
+};
+
+type TelegramKeyboardButton = string | {
+  text: string;
+  web_app?: {
+    url: string;
+  };
+};
+
 type TelegramReplyKeyboardMarkup = {
-  keyboard: string[][];
+  keyboard: TelegramKeyboardButton[][];
   resize_keyboard?: boolean;
   one_time_keyboard?: boolean;
+};
+
+type TelegramSendMessageOptions = {
+  replyMarkup?: TelegramReplyKeyboardMarkup;
+  parseMode?: "HTML";
 };
 
 type CommandHandler = (message: TelegramMessage) => Promise<void>;
 
 const pendingFeedbackChats = new Set<number>();
-const startReply = "Private botga xush kelibsiz ✅\nDashboardga kirdingiz.";
-const defaultTextReply = "Xabaringiz qabul qilindi.";
+const webAppUrl = "https://private-git-main-yaxyousmonovs-projects.vercel.app";
+const botDescription = [
+  "✨ Private — shaxsiy rivojlanish uchun zamonaviy platforma.",
+  "",
+  "💰 Moliyani boshqaring",
+  "📋 Rejalarni kuzating",
+  "🧠 AI tavsiyalar oling",
+  "📈 Statistikalarni ko‘ring",
+  "🎯 O‘z ustingizda ishlang",
+  "",
+  "Rasmiy Telegram AI yordamchi bot.",
+].join("\n");
+const startReply = [
+  "👋 Salom, Private ilovasining rasmiy Telegram AI yordamchi botiga xush kelibsiz.",
+  "",
+  "✨ Private — moliya, rejalar, odatlar va shaxsiy rivojlanishni bitta joyda boshqarish uchun yaratilgan zamonaviy platforma.",
+  "",
+  `🚀 <a href="${webAppUrl}">Web App</a>`,
+  "",
+  "📌 Savollaringiz bo‘lsa bemalol yozishingiz mumkin.",
+].join("\n");
+const defaultTextReply = "Private ilovasi haqida savolingiz qabul qilindi.";
+const outsidePrivateReply = "Men faqat Private ilovasi haqida yordam bera olaman 😊";
 const feedbackPromptReply = "Taklif yoki shikoyatingizni yozing.";
 const feedbackAcceptedReply = "Taklif/shikoyatingiz qabul qilindi ✅";
 const mainKeyboard: TelegramReplyKeyboardMarkup = {
@@ -43,6 +82,7 @@ const mainKeyboard: TelegramReplyKeyboardMarkup = {
     ["Dashboard", "Moliya"],
     ["Rejalar", "Xulosalar"],
     ["Taklif/Shikoyatlar"],
+    [{ text: "Web App", web_app: { url: webAppUrl } }],
     ["Chiqish"],
   ],
   resize_keyboard: true,
@@ -55,6 +95,39 @@ const sectionReplies: Record<string, string> = {
   Xulosalar: "Xulosalar bo‘limidasiz.",
   Chiqish: "Botdan chiqdingiz.",
 };
+
+const privateTopicKeywords = [
+  "private",
+  "dashboard",
+  "moliya",
+  "reja",
+  "rejalar",
+  "xulosa",
+  "xulosalar",
+  "taklif",
+  "shikoyat",
+  "ai",
+  "web app",
+  "login",
+  "auth",
+  "hisob",
+  "balans",
+  "kirim",
+  "chiqim",
+  "statistika",
+  "odat",
+  "odati",
+  "xato",
+  "xatolar",
+  "profil",
+  "sozlama",
+  "settings",
+  "bot",
+  "ilova",
+  "platforma",
+  "yordam",
+  "savol",
+];
 
 function getTelegramBotToken() {
   return process.env.TELEGRAM_BOT_TOKEN;
@@ -90,32 +163,52 @@ function isTelegramUpdate(value: unknown): value is TelegramWebhookUpdate {
   return typeof update.update_id === "number";
 }
 
-export async function sendTelegramMessage(chatId: number, text: string, replyMarkup?: TelegramReplyKeyboardMarkup) {
+function isPrivateTopic(text: string) {
+  const normalizedText = text.toLowerCase();
+  return privateTopicKeywords.some((keyword) => normalizedText.includes(keyword));
+}
+
+async function callTelegramApi(method: string, body: Record<string, unknown>) {
   const token = getTelegramBotToken();
 
   if (!token) {
     throw new Error("TELEGRAM_BOT_TOKEN is not configured");
   }
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
-    }),
+    body: JSON.stringify(body),
   });
 
-  const payload = (await response.json()) as TelegramSendMessageResponse;
+  const payload = (await response.json()) as TelegramApiResponse;
 
   if (!response.ok || !payload.ok) {
-    throw new Error(payload.description ?? `Telegram sendMessage failed with status ${response.status}`);
+    throw new Error(payload.description ?? `Telegram ${method} failed with status ${response.status}`);
   }
 
   return payload;
+}
+
+export async function sendTelegramMessage(chatId: number, text: string, options: TelegramSendMessageOptions = {}) {
+  return callTelegramApi("sendMessage", {
+    chat_id: chatId,
+    text,
+    ...(options.parseMode ? { parse_mode: options.parseMode } : {}),
+    ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
+  }) as Promise<TelegramSendMessageResponse>;
+}
+
+async function setTelegramBotDescription() {
+  try {
+    await callTelegramApi("setMyDescription", {
+      description: botDescription,
+    });
+  } catch (error) {
+    console.error("[telegram/webhook] Failed to set bot description", error);
+  }
 }
 
 async function sendFeedbackEmail(message: TelegramMessage, feedbackText: string) {
@@ -171,7 +264,11 @@ async function sendFeedbackEmail(message: TelegramMessage, feedbackText: string)
 const commandHandlers: Record<string, CommandHandler> = {
   "/start": async (message) => {
     pendingFeedbackChats.delete(message.chat.id);
-    await sendTelegramMessage(message.chat.id, startReply, mainKeyboard);
+    await setTelegramBotDescription();
+    await sendTelegramMessage(message.chat.id, startReply, {
+      parseMode: "HTML",
+      replyMarkup: mainKeyboard,
+    });
   },
 };
 
@@ -185,7 +282,7 @@ async function handleTextMessage(message: TelegramMessage) {
   if (pendingFeedbackChats.has(message.chat.id)) {
     pendingFeedbackChats.delete(message.chat.id);
     await sendFeedbackEmail(message, text);
-    await sendTelegramMessage(message.chat.id, feedbackAcceptedReply, mainKeyboard);
+    await sendTelegramMessage(message.chat.id, feedbackAcceptedReply, { replyMarkup: mainKeyboard });
     return;
   }
 
@@ -199,18 +296,23 @@ async function handleTextMessage(message: TelegramMessage) {
 
   if (text === "Taklif/Shikoyatlar") {
     pendingFeedbackChats.add(message.chat.id);
-    await sendTelegramMessage(message.chat.id, feedbackPromptReply, mainKeyboard);
+    await sendTelegramMessage(message.chat.id, feedbackPromptReply, { replyMarkup: mainKeyboard });
     return;
   }
 
   const sectionReply = sectionReplies[text];
 
   if (sectionReply) {
-    await sendTelegramMessage(message.chat.id, sectionReply, mainKeyboard);
+    await sendTelegramMessage(message.chat.id, sectionReply, { replyMarkup: mainKeyboard });
     return;
   }
 
-  await sendTelegramMessage(message.chat.id, defaultTextReply, mainKeyboard);
+  if (!isPrivateTopic(text)) {
+    await sendTelegramMessage(message.chat.id, outsidePrivateReply, { replyMarkup: mainKeyboard });
+    return;
+  }
+
+  await sendTelegramMessage(message.chat.id, defaultTextReply, { replyMarkup: mainKeyboard });
 }
 
 export async function POST(request: NextRequest) {
