@@ -17,11 +17,18 @@ function isRouteMatch(path: string, routes: readonly string[]) {
   return routes.some((route) => path === route || path.startsWith(`${route}/`));
 }
 
-function hasSupabaseConfig() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+function getSupabaseConfig() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    return null;
+  }
+
+  return { url, anonKey };
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   if (path === "/auth/callback") {
@@ -35,8 +42,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!hasSupabaseConfig()) {
-    console.error("[auth/middleware] Supabase env vars are missing");
+  const supabaseConfig = getSupabaseConfig();
+
+  if (!supabaseConfig) {
+    console.error("[auth/proxy] Supabase env vars are missing");
 
     if (isProtected) {
       return NextResponse.redirect(new URL("/login", request.url));
@@ -49,34 +58,30 @@ export async function middleware(request: NextRequest) {
     request,
   });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => {
-            request.cookies.set(name, value);
-          });
-
-          response = NextResponse.next({
-            request,
-          });
-
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
-          });
-        },
+  const supabase = createServerClient(supabaseConfig.url, supabaseConfig.anonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
       },
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => {
+          request.cookies.set(name, value);
+        });
+
+        response = NextResponse.next({
+          request,
+        });
+
+        cookiesToSet.forEach(({ name, value, options }) => {
+          response.cookies.set(name, value, options);
+        });
       },
     },
-  );
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  });
 
   const {
     data: { user },
@@ -85,7 +90,7 @@ export async function middleware(request: NextRequest) {
   const isAuthenticated = Boolean(user) && !error;
 
   if (error) {
-    console.error("[auth/middleware] getUser failed", {
+    console.error("[auth/proxy] getUser failed", {
       path,
       message: error.message,
     });
@@ -95,7 +100,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (isPublic && isAuthenticated && path !== "/auth/callback") {
+  if (isPublic && isAuthenticated) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
