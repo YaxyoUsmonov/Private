@@ -31,6 +31,12 @@ type TelegramApiResponse = {
   result?: unknown;
 };
 
+type OpenAIResponseOutput = {
+  content?: Array<{
+    text?: unknown;
+  }>;
+};
+
 type TelegramKeyboardButton = string | {
   text: string;
   web_app?: {
@@ -52,6 +58,7 @@ type TelegramSendMessageOptions = {
 type CommandHandler = (message: TelegramMessage) => Promise<void>;
 
 const pendingFeedbackChats = new Set<number>();
+const telegramOpenaiModel = "gpt-4o-mini";
 const webAppUrl = "https://private-git-main-yaxyousmonovs-projects.vercel.app";
 const botDescription = [
   "✨ Private — shaxsiy rivojlanish uchun zamonaviy platforma.",
@@ -73,7 +80,8 @@ const startReply = [
   "",
   "📌 Savollaringiz bo‘lsa bemalol yozishingiz mumkin.",
 ].join("\n");
-const defaultTextReply = "Private ilovasi haqida savolingiz qabul qilindi.";
+const aiNotConfiguredReply = "AI hozircha sozlanmagan.";
+const aiErrorReply = "AI javob berishda xatolik yuz berdi.";
 const outsidePrivateReply = "Men faqat Private ilovasi haqida yordam bera olaman 😊";
 const feedbackPromptReply = "Taklif yoki shikoyatingizni yozing.";
 const feedbackAcceptedReply = "Taklif/shikoyatingiz qabul qilindi ✅";
@@ -101,45 +109,16 @@ const sectionReplies: Record<string, string> = {
   Chiqish: "Botdan chiqdingiz.",
 };
 
-const privateTopicKeywords = [
-  "private",
-  "dashboard",
-  "moliya",
-  "reja",
-  "rejalar",
-  "xulosa",
-  "xulosalar",
-  "taklif",
-  "shikoyat",
-  "ai",
-  "web app",
-  "login",
-  "auth",
-  "hisob",
-  "balans",
-  "kirim",
-  "chiqim",
-  "statistika",
-  "odat",
-  "odati",
-  "xato",
-  "xatolar",
-  "profil",
-  "sozlama",
-  "settings",
-  "bot",
-  "ilova",
-  "platforma",
-  "yordam",
-  "savol",
-];
-
 function getTelegramBotToken() {
   return process.env.TELEGRAM_BOT_TOKEN;
 }
 
 function getResendApiKey() {
   return process.env.RESEND_API_KEY;
+}
+
+function getOpenAIApiKey() {
+  return process.env.OPENAI_API_KEY;
 }
 
 function getAdminEmail() {
@@ -168,9 +147,15 @@ function isTelegramUpdate(value: unknown): value is TelegramWebhookUpdate {
   return typeof update.update_id === "number";
 }
 
-function isPrivateTopic(text: string) {
-  const normalizedText = text.toLowerCase();
-  return privateTopicKeywords.some((keyword) => normalizedText.includes(keyword));
+function extractOpenAIText(response: unknown) {
+  const outputText = (response as { output_text?: unknown }).output_text;
+
+  if (typeof outputText === "string") {
+    return outputText;
+  }
+
+  const output = (response as { output?: OpenAIResponseOutput[] }).output;
+  return output?.flatMap((item) => item.content ?? []).map((item) => item.text).find((item): item is string => typeof item === "string") ?? "";
 }
 
 async function callTelegramApi(method: string, body: Record<string, unknown>) {
@@ -228,6 +213,59 @@ async function setTelegramBotDescription() {
     });
   } catch (error) {
     console.error("[telegram/webhook] Failed to set bot description", error);
+  }
+}
+
+async function askPrivateAi(text: string) {
+  const openaiApiKey = getOpenAIApiKey();
+
+  if (!openaiApiKey) {
+    return aiNotConfiguredReply;
+  }
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openaiApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: telegramOpenaiModel,
+        input: [
+          {
+            role: "system",
+            content: [
+              "You are Private AI, the official assistant for the Private self-improvement app.",
+              "Private is a modern platform for personal finance, plans, habits, mistakes/reflections, statistics, and self-growth.",
+              "Answer only questions about the Private app, its features, usage, finance/plans/habits/reflection workflows, Web App, feedback, and account/help topics.",
+              `If the user asks about any unrelated topic, reply exactly: ${outsidePrivateReply}`,
+              "Keep answers short, practical, friendly, and in Uzbek Latin unless the user clearly writes in another language.",
+              "Do not invent user data or claim access to their private app data from Telegram.",
+            ].join(" "),
+          },
+          {
+            role: "user",
+            content: text,
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[telegram/ai] OpenAI request failed", {
+        status: response.status,
+        error: errorText,
+      });
+      return aiErrorReply;
+    }
+
+    const result = await response.json();
+    return extractOpenAIText(result).trim() || aiErrorReply;
+  } catch (error) {
+    console.error("[telegram/ai] OpenAI request crashed", error);
+    return aiErrorReply;
   }
 }
 
@@ -326,12 +364,8 @@ async function handleTextMessage(message: TelegramMessage) {
     return;
   }
 
-  if (!isPrivateTopic(text)) {
-    await sendBotMessage(message.chat.id, outsidePrivateReply);
-    return;
-  }
-
-  await sendBotMessage(message.chat.id, defaultTextReply);
+  const aiReply = await askPrivateAi(text);
+  await sendBotMessage(message.chat.id, aiReply);
 }
 
 export async function POST(request: NextRequest) {
