@@ -182,7 +182,12 @@ function isAdminTelegramUser(userId: number) {
 
 function checkAndIncrementAiUsage(userId: number) {
   if (isAdminTelegramUser(userId)) {
-    return { allowed: true, remaining: Number.POSITIVE_INFINITY };
+    return {
+      allowed: true,
+      used: 0,
+      remaining: Number.POSITIVE_INFINITY,
+      admin: true,
+    };
   }
 
   const today = getTodayKey();
@@ -191,7 +196,12 @@ function checkAndIncrementAiUsage(userId: number) {
 
   if (record.count >= dailyAiMessageLimit) {
     aiUsageByUser.set(userId, record);
-    return { allowed: false, remaining: 0 };
+    return {
+      allowed: false,
+      used: record.count,
+      remaining: 0,
+      admin: false,
+    };
   }
 
   const nextRecord = {
@@ -202,8 +212,16 @@ function checkAndIncrementAiUsage(userId: number) {
 
   return {
     allowed: true,
+    used: nextRecord.count,
     remaining: dailyAiMessageLimit - nextRecord.count,
+    admin: false,
   };
+}
+
+function logAiUsage(userId: number, usage: ReturnType<typeof checkAndIncrementAiUsage>) {
+  console.log(
+    `[telegram/limit] user=${userId} used=${usage.used} remaining=${usage.admin ? "unlimited" : usage.remaining} admin=${usage.admin}`,
+  );
 }
 
 function extractOpenAIText(response: unknown) {
@@ -426,6 +444,7 @@ async function handleTextMessage(message: TelegramMessage) {
 
   const userId = getTelegramUserId(message);
   const usage = checkAndIncrementAiUsage(userId);
+  logAiUsage(userId, usage);
 
   if (!usage.allowed) {
     await sendBotMessage(message.chat.id, aiLimitReachedReply);
