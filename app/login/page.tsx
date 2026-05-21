@@ -7,6 +7,20 @@ import { useTranslations } from "next-intl";
 import { Globe, Loader2 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
+function getAppUrl() {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+
+  if (appUrl) {
+    return appUrl;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("NEXT_PUBLIC_APP_URL is required in production");
+  }
+
+  return "http://localhost:3000";
+}
+
 export default function LoginPage() {
   const t = useTranslations("login");
   const router = useRouter();
@@ -39,8 +53,6 @@ export default function LoginPage() {
 
     setLoading(true);
     setErrorMessage(null);
-    const origin = window.location.origin;
-    const redirectTo = `${origin}/auth/callback`;
 
     window.setTimeout(() => {
       if (document.visibilityState === "visible") {
@@ -49,6 +61,7 @@ export default function LoginPage() {
     }, 8000);
 
     try {
+      const redirectTo = `${getAppUrl()}/auth/callback`;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
