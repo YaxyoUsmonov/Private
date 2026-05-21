@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,14 +67,23 @@ type TelegramSendMessageOptions = {
 type CommandHandler = (message: TelegramMessage) => Promise<void>;
 
 type AiUsageRecord = {
-  count: number;
-  lastResetDate: string;
+  daily_count: number;
+  last_reset: string;
+  allowed: boolean;
+};
+
+type AiUsageResult = {
+  allowed: boolean;
+  used: number;
+  remaining: number;
+  admin: boolean;
 };
 
 const pendingFeedbackChats = new Set<number>();
-const aiUsageByUser = new Map<number, AiUsageRecord>();
 const dailyAiMessageLimit = 20;
 const telegramOpenaiModel = "gpt-4o-mini";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const webAppUrl = "https://private-git-main-yaxyousmonovs-projects.vercel.app";
 const botDescription = [
   "✨ Private — shaxsiy rivojlanish uchun zamonaviy platforma.",
@@ -146,6 +156,19 @@ function getAdminEmail() {
   return process.env.ADMIN_EMAIL;
 }
 
+function createTelegramUsageClient() {
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error("Supabase service env vars are missing for Telegram AI usage tracking");
+  }
+
+  return createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, { status });
 }
@@ -180,7 +203,7 @@ function isAdminTelegramUser(userId: number) {
   return getAdminTelegramId() === userId;
 }
 
-function checkAndIncrementAiUsage(userId: number) {
+async function checkAndIncrementAiUsage(userId: number): Promise<AiUsageResult> {
   if (isAdminTelegramUser(userId)) {
     return {
       allowed: true,
@@ -191,34 +214,31 @@ function checkAndIncrementAiUsage(userId: number) {
   }
 
   const today = getTodayKey();
-  const current = aiUsageByUser.get(userId);
-  const record = current?.lastResetDate === today ? current : { count: 0, lastResetDate: today };
+  const supabase = createTelegramUsageClient();
+  const { data, error } = await supabase
+    .rpc("increment_telegram_ai_usage", {
+      p_telegram_user_id: userId,
+      p_today: today,
+      p_limit: dailyAiMessageLimit,
+    })
+    .single();
 
-  if (record.count >= dailyAiMessageLimit) {
-    aiUsageByUser.set(userId, record);
-    return {
-      allowed: false,
-      used: record.count,
-      remaining: 0,
-      admin: false,
-    };
+  if (error) {
+    throw error;
   }
 
-  const nextRecord = {
-    count: record.count + 1,
-    lastResetDate: today,
-  };
-  aiUsageByUser.set(userId, nextRecord);
+  const usage = data as AiUsageRecord | null;
+  const used = usage?.daily_count ?? 0;
 
   return {
-    allowed: true,
-    used: nextRecord.count,
-    remaining: dailyAiMessageLimit - nextRecord.count,
+    allowed: usage?.allowed === true,
+    used,
+    remaining: Math.max(0, dailyAiMessageLimit - used),
     admin: false,
   };
 }
 
-function logAiUsage(userId: number, usage: ReturnType<typeof checkAndIncrementAiUsage>) {
+function logAiUsage(userId: number, usage: AiUsageResult) {
   console.log(
     `[telegram/limit] user=${userId} used=${usage.used} remaining=${usage.admin ? "unlimited" : usage.remaining} admin=${usage.admin}`,
   );
@@ -443,8 +463,16 @@ async function handleTextMessage(message: TelegramMessage) {
   }
 
   const userId = getTelegramUserId(message);
-  const usage = checkAndIncrementAiUsage(userId);
-  logAiUsage(userId, usage);
+  let usage: AiUsageResult;
+
+  try {
+    usage = await checkAndIncrementAiUsage(userId);
+    logAiUsage(userId, usage);
+  } catch (error) {
+    console.error("[telegram/limit] Failed to check Supabase usage limit", error);
+    await sendBotMessage(message.chat.id, aiErrorReply);
+    return;
+  }
 
   if (!usage.allowed) {
     await sendBotMessage(message.chat.id, aiLimitReachedReply);
