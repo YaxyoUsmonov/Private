@@ -8,10 +8,18 @@ type TelegramChat = {
   type?: string;
 };
 
+type TelegramUser = {
+  id: number;
+  is_bot?: boolean;
+  first_name?: string;
+  username?: string;
+};
+
 type TelegramMessage = {
   message_id: number;
   text?: string;
   chat: TelegramChat;
+  from?: TelegramUser;
 };
 
 type TelegramWebhookUpdate = {
@@ -57,7 +65,14 @@ type TelegramSendMessageOptions = {
 
 type CommandHandler = (message: TelegramMessage) => Promise<void>;
 
+type AiUsageRecord = {
+  count: number;
+  lastResetDate: string;
+};
+
 const pendingFeedbackChats = new Set<number>();
+const aiUsageByUser = new Map<number, AiUsageRecord>();
+const dailyAiMessageLimit = 20;
 const telegramOpenaiModel = "gpt-4o-mini";
 const webAppUrl = "https://private-git-main-yaxyousmonovs-projects.vercel.app";
 const botDescription = [
@@ -82,6 +97,7 @@ const startReply = [
 ].join("\n");
 const aiNotConfiguredReply = "AI hozircha sozlanmagan.";
 const aiErrorReply = "AI javob berishda xatolik yuz berdi.";
+const aiLimitReachedReply = "Bugungi AI limit tugadi. Ertaga yana urinib ko‘ring 😊";
 const outsidePrivateReply = "Men faqat Private ilovasi haqida yordam bera olaman 😊";
 const feedbackPromptReply = "Taklif yoki shikoyatingizni yozing.";
 const feedbackAcceptedReply = "Taklif/shikoyatingiz qabul qilindi ✅";
@@ -121,6 +137,11 @@ function getOpenAIApiKey() {
   return process.env.OPENAI_API_KEY;
 }
 
+function getAdminTelegramId() {
+  const id = Number(process.env.ADMIN_TELEGRAM_ID);
+  return Number.isFinite(id) ? id : null;
+}
+
 function getAdminEmail() {
   return process.env.ADMIN_EMAIL;
 }
@@ -145,6 +166,44 @@ function isTelegramUpdate(value: unknown): value is TelegramWebhookUpdate {
 
   const update = value as Partial<TelegramWebhookUpdate>;
   return typeof update.update_id === "number";
+}
+
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getTelegramUserId(message: TelegramMessage) {
+  return message.from?.id ?? message.chat.id;
+}
+
+function isAdminTelegramUser(userId: number) {
+  return getAdminTelegramId() === userId;
+}
+
+function checkAndIncrementAiUsage(userId: number) {
+  if (isAdminTelegramUser(userId)) {
+    return { allowed: true, remaining: Number.POSITIVE_INFINITY };
+  }
+
+  const today = getTodayKey();
+  const current = aiUsageByUser.get(userId);
+  const record = current?.lastResetDate === today ? current : { count: 0, lastResetDate: today };
+
+  if (record.count >= dailyAiMessageLimit) {
+    aiUsageByUser.set(userId, record);
+    return { allowed: false, remaining: 0 };
+  }
+
+  const nextRecord = {
+    count: record.count + 1,
+    lastResetDate: today,
+  };
+  aiUsageByUser.set(userId, nextRecord);
+
+  return {
+    allowed: true,
+    remaining: dailyAiMessageLimit - nextRecord.count,
+  };
 }
 
 function extractOpenAIText(response: unknown) {
@@ -321,6 +380,7 @@ async function sendFeedbackEmail(message: TelegramMessage, feedbackText: string)
 
 const commandHandlers: Record<string, CommandHandler> = {
   "/start": async (message) => {
+    console.log("[telegram/start] user id", getTelegramUserId(message));
     pendingFeedbackChats.delete(message.chat.id);
     await setTelegramBotDescription();
     await sendBotMessage(message.chat.id, startReply, {
@@ -361,6 +421,14 @@ async function handleTextMessage(message: TelegramMessage) {
 
   if (sectionReply) {
     await sendBotMessage(message.chat.id, sectionReply);
+    return;
+  }
+
+  const userId = getTelegramUserId(message);
+  const usage = checkAndIncrementAiUsage(userId);
+
+  if (!usage.allowed) {
+    await sendBotMessage(message.chat.id, aiLimitReachedReply);
     return;
   }
 
