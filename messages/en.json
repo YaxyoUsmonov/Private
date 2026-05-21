@@ -65,7 +65,19 @@
   },
   "login": {
     "description": "Track your finances, plans and personal habits in one focused place.",
-    "google": "Continue with Google"
+    "google": "Continue with Google",
+    "emailLogin": "Email login",
+    "signup": "Sign up",
+    "email": "Email",
+    "password": "Password",
+    "emailPlaceholder": "email@example.com",
+    "passwordPlaceholder": "At least 6 characters",
+    "emailLoginButton": "Continue with email",
+    "signupButton": "Create account",
+    "or": "or",
+    "missingCredentials": "Enter email and password.",
+    "signupSuccess": "Confirm your email or log in.",
+    "emailAuthFailed": "Email authentication failed."
   },
   "dashboard": {
     "eyebrow": "Welcome back",

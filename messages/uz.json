@@ -65,7 +65,19 @@
   },
   "login": {
     "description": "Moliyangiz, rejalaringiz va shaxsiy odatlaringizni bitta joyda kuzating.",
-    "google": "Google bilan kirish"
+    "google": "Google bilan kirish",
+    "emailLogin": "Email orqali kirish",
+    "signup": "Ro?yxatdan o?tish",
+    "email": "Email",
+    "password": "Parol",
+    "emailPlaceholder": "email@example.com",
+    "passwordPlaceholder": "Kamida 6 ta belgi",
+    "emailLoginButton": "Email bilan kirish",
+    "signupButton": "Account yaratish",
+    "or": "yoki",
+    "missingCredentials": "Email va parolni kiriting.",
+    "signupSuccess": "Emailingizni tasdiqlang yoki login qiling.",
+    "emailAuthFailed": "Email auth jarayonida xatolik yuz berdi."
   },
   "dashboard": {
     "eyebrow": "Xush kelibsiz",
