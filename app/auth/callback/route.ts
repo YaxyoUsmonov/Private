@@ -2,14 +2,14 @@ import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
-  const requestUrl = new URL(request.url);
-  const code = requestUrl.searchParams.get("code");
-  const error = requestUrl.searchParams.get("error");
-  const errorDescription = requestUrl.searchParams.get("error_description");
-  const next = requestUrl.searchParams.get("next") ?? "/dashboard";
-  const redirectUrl = new URL(next, requestUrl.origin);
-  const response = NextResponse.redirect(redirectUrl);
-  const searchParams = Object.fromEntries(requestUrl.searchParams.entries());
+  const code = request.nextUrl.searchParams.get("code");
+  const error = request.nextUrl.searchParams.get("error");
+  const errorDescription = request.nextUrl.searchParams.get("error_description");
+  const origin = request.nextUrl.origin;
+  const successUrl = new URL("/dashboard", origin);
+  const loginUrl = new URL("/login", origin);
+  const response = NextResponse.redirect(successUrl);
+  const searchParams = Object.fromEntries(request.nextUrl.searchParams.entries());
 
   if (error) {
     console.error("[auth/callback] provider returned error", {
@@ -18,9 +18,8 @@ export async function GET(request: NextRequest) {
       searchParams,
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     });
-    return NextResponse.redirect(
-      new URL(`/login?error=${encodeURIComponent(errorDescription ?? error)}`, requestUrl.origin),
-    );
+    loginUrl.searchParams.set("error", errorDescription ?? error);
+    return NextResponse.redirect(loginUrl);
   }
 
   if (!code) {
@@ -28,12 +27,25 @@ export async function GET(request: NextRequest) {
       searchParams,
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     });
-    return NextResponse.redirect(new URL("/login?error=missing_code", requestUrl.origin));
+    loginUrl.searchParams.set("error", "missing_code");
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("[auth/callback] Supabase env vars are missing", {
+      hasUrl: Boolean(supabaseUrl),
+      hasAnonKey: Boolean(supabaseAnonKey),
+    });
+    loginUrl.searchParams.set("error", "missing_supabase_config");
+    return NextResponse.redirect(loginUrl);
   }
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -56,9 +68,8 @@ export async function GET(request: NextRequest) {
 
   if (exchangeError) {
     console.error("[auth/callback] exchangeCodeForSession failed", exchangeError);
-    return NextResponse.redirect(
-      new URL(`/login?error=${encodeURIComponent(exchangeError.message)}`, requestUrl.origin),
-    );
+    loginUrl.searchParams.set("error", exchangeError.message);
+    return NextResponse.redirect(loginUrl);
   }
 
   return response;
