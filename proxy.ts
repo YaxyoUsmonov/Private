@@ -11,8 +11,6 @@ const protectedRoutes = [
   "/sozlamalar",
 ] as const;
 
-const publicRoutes = ["/", "/login", "/auth/callback"] as const;
-
 function isRouteMatch(path: string, routes: readonly string[]) {
   return routes.some((route) => path === route || path.startsWith(`${route}/`));
 }
@@ -36,9 +34,8 @@ export async function proxy(request: NextRequest) {
   }
 
   const isProtected = isRouteMatch(path, protectedRoutes);
-  const isPublic = publicRoutes.includes(path as (typeof publicRoutes)[number]);
 
-  if (!isProtected && !isPublic) {
+  if (!isProtected) {
     return NextResponse.next();
   }
 
@@ -47,11 +44,7 @@ export async function proxy(request: NextRequest) {
   if (!supabaseConfig) {
     console.error("[auth/proxy] Supabase env vars are missing");
 
-    if (isProtected) {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-
-    return NextResponse.next();
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   let response = NextResponse.next({
@@ -100,17 +93,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (isPublic && isAuthenticated) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
   return response;
 }
 
 export const config = {
   matcher: [
-    "/",
-    "/login",
     "/dashboard/:path*",
     "/moliya/:path*",
     "/rejalar/:path*",
