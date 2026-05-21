@@ -9,19 +9,42 @@ const protectedRoutes = [
   "/xulosalar",
   "/profil",
   "/sozlamalar",
-];
+] as const;
 
-const publicRoutes = ["/", "/login", "/auth/callback"];
+const publicRoutes = ["/", "/login", "/auth/callback"] as const;
 
-export async function proxy(request: NextRequest) {
+function isRouteMatch(path: string, routes: readonly string[]) {
+  return routes.some((route) => path === route || path.startsWith(`${route}/`));
+}
+
+function hasSupabaseConfig() {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+}
+
+export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   if (path === "/auth/callback") {
     return NextResponse.next();
   }
 
-  const isProtected = protectedRoutes.some((route) => path === route || path.startsWith(`${route}/`));
-  const isPublic = publicRoutes.includes(path);
+  const isProtected = isRouteMatch(path, protectedRoutes);
+  const isPublic = publicRoutes.includes(path as (typeof publicRoutes)[number]);
+
+  if (!isProtected && !isPublic) {
+    return NextResponse.next();
+  }
+
+  if (!hasSupabaseConfig()) {
+    console.error("[auth/middleware] Supabase env vars are missing");
+
+    if (isProtected) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    return NextResponse.next();
+  }
+
   let response = NextResponse.next({
     request,
   });
@@ -62,7 +85,7 @@ export async function proxy(request: NextRequest) {
   const isAuthenticated = Boolean(user) && !error;
 
   if (error) {
-    console.error("[auth/proxy] getUser failed", {
+    console.error("[auth/middleware] getUser failed", {
       path,
       message: error.message,
     });
@@ -80,5 +103,15 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|webp|svg)$).*)"],
+  matcher: [
+    "/",
+    "/login",
+    "/dashboard/:path*",
+    "/moliya/:path*",
+    "/rejalar/:path*",
+    "/xatolarim/:path*",
+    "/xulosalar/:path*",
+    "/profil/:path*",
+    "/sozlamalar/:path*",
+  ],
 };
