@@ -77,6 +77,15 @@ const defaultTextReply = "Private ilovasi haqida savolingiz qabul qilindi.";
 const outsidePrivateReply = "Men faqat Private ilovasi haqida yordam bera olaman 😊";
 const feedbackPromptReply = "Taklif yoki shikoyatingizni yozing.";
 const feedbackAcceptedReply = "Taklif/shikoyatingiz qabul qilindi ✅";
+const basicKeyboard: TelegramReplyKeyboardMarkup = {
+  keyboard: [
+    ["Dashboard", "Moliya"],
+    ["Rejalar", "Xulosalar"],
+    ["Taklif/Shikoyatlar"],
+    ["Chiqish"],
+  ],
+  resize_keyboard: true,
+};
 const mainKeyboard: TelegramReplyKeyboardMarkup = {
   keyboard: [
     ["Dashboard", "Moliya"],
@@ -201,6 +210,21 @@ export async function sendTelegramMessage(chatId: number, text: string, options:
   }) as Promise<TelegramSendMessageResponse>;
 }
 
+async function sendBotMessage(chatId: number, text: string, options: Omit<TelegramSendMessageOptions, "replyMarkup"> = {}) {
+  try {
+    return await sendTelegramMessage(chatId, text, {
+      ...options,
+      replyMarkup: mainKeyboard,
+    });
+  } catch (error) {
+    console.error("[telegram/webhook] Failed to send message with Web App keyboard, retrying with basic keyboard", error);
+    return sendTelegramMessage(chatId, text, {
+      ...options,
+      replyMarkup: basicKeyboard,
+    });
+  }
+}
+
 async function setTelegramBotDescription() {
   try {
     await callTelegramApi("setMyDescription", {
@@ -265,9 +289,8 @@ const commandHandlers: Record<string, CommandHandler> = {
   "/start": async (message) => {
     pendingFeedbackChats.delete(message.chat.id);
     await setTelegramBotDescription();
-    await sendTelegramMessage(message.chat.id, startReply, {
+    await sendBotMessage(message.chat.id, startReply, {
       parseMode: "HTML",
-      replyMarkup: mainKeyboard,
     });
   },
 };
@@ -282,7 +305,7 @@ async function handleTextMessage(message: TelegramMessage) {
   if (pendingFeedbackChats.has(message.chat.id)) {
     pendingFeedbackChats.delete(message.chat.id);
     await sendFeedbackEmail(message, text);
-    await sendTelegramMessage(message.chat.id, feedbackAcceptedReply, { replyMarkup: mainKeyboard });
+    await sendBotMessage(message.chat.id, feedbackAcceptedReply);
     return;
   }
 
@@ -296,23 +319,23 @@ async function handleTextMessage(message: TelegramMessage) {
 
   if (text === "Taklif/Shikoyatlar") {
     pendingFeedbackChats.add(message.chat.id);
-    await sendTelegramMessage(message.chat.id, feedbackPromptReply, { replyMarkup: mainKeyboard });
+    await sendBotMessage(message.chat.id, feedbackPromptReply);
     return;
   }
 
   const sectionReply = sectionReplies[text];
 
   if (sectionReply) {
-    await sendTelegramMessage(message.chat.id, sectionReply, { replyMarkup: mainKeyboard });
+    await sendBotMessage(message.chat.id, sectionReply);
     return;
   }
 
   if (!isPrivateTopic(text)) {
-    await sendTelegramMessage(message.chat.id, outsidePrivateReply, { replyMarkup: mainKeyboard });
+    await sendBotMessage(message.chat.id, outsidePrivateReply);
     return;
   }
 
-  await sendTelegramMessage(message.chat.id, defaultTextReply, { replyMarkup: mainKeyboard });
+  await sendBotMessage(message.chat.id, defaultTextReply);
 }
 
 export async function POST(request: NextRequest) {
