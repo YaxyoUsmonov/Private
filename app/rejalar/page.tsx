@@ -72,7 +72,7 @@ export default function RejalarPage() {
   const plansAi = useAiAnalysis({ anchorDate: selectedDate, period: "week", scope: "plans" });
   const { completed, pending, progress } = useMemo(() => {
     const completedTasks = tasks.filter((task) => task.status === "Bajarildi").length;
-    const pendingTasks = tasks.length - completedTasks;
+    const pendingTasks = tasks.filter((task) => task.status !== "Bajarildi" && task.status !== "Bajarilmadi").length;
     const progressValue = Math.round((completedTasks / Math.max(tasks.length, 1)) * 100);
 
     return {
