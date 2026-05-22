@@ -179,7 +179,11 @@
     "doneQuestion": "Bajarish qanday o‘tdi?",
     "missedQuestion": "Nima sabab bajarmadingiz?",
     "donePlaceholder": "Masalan: diqqat yaxshi bo‘ldi, rejani vaqtida tugatdim.",
-    "missedPlaceholder": "Masalan: vaqt yetmadi yoki boshqa ishlar ustuvor bo‘ldi."
+    "missedPlaceholder": "Masalan: vaqt yetmadi yoki boshqa ishlar ustuvor bo‘ldi.",
+    "statusNoteQuestion": "Avval izoh yozing, keyin holatni tanlang.",
+    "statusNotePlaceholder": "Kamida 10 ta so‘z bilan vazifa qanday o‘tganini yozing.",
+    "statusNoteWarning": "Avval izohga kamida 10 ta so‘z yozing.",
+    "statusWordCount": "{count} / {min} so‘z"
   },
   "mistakes": {
     "eyebrow": "Odatlar nazorati",

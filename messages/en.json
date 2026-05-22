@@ -179,7 +179,11 @@
     "doneQuestion": "How did completing it go?",
     "missedQuestion": "Why did you miss it?",
     "donePlaceholder": "Example: I stayed focused and finished on time.",
-    "missedPlaceholder": "Example: I ran out of time or another priority came up."
+    "missedPlaceholder": "Example: I ran out of time or another priority came up.",
+    "statusNoteQuestion": "Write a reflection first, then choose the status.",
+    "statusNotePlaceholder": "Write at least 10 words about how this task went.",
+    "statusNoteWarning": "Write at least 10 words in the note first.",
+    "statusWordCount": "{count} / {min} words"
   },
   "mistakes": {
     "eyebrow": "Habit control",

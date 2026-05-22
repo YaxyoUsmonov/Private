@@ -16,6 +16,11 @@ import { isSameDate, shortDateLabel, todayISO } from "../utils/date";
 import { createItemId, taskKey } from "../utils/items";
 
 const chartColors = ["#c084fc", "#22c55e", "#f59e0b", "#a78bfa", "#64748b", "#38bdf8"];
+const MIN_STATUS_NOTE_WORDS = 10;
+
+function countStatusNoteWords(value: string) {
+  return value.trim().split(/\s+/).filter(Boolean).length;
+}
 
 const taskMeta = {
   "Ta’lim": { icon: Book, tone: "blue" as const },
@@ -59,7 +64,9 @@ export default function RejalarPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
   const [statusTaskKey, setStatusTaskKey] = useState<string | null>(null);
-  const [statusChoice, setStatusChoice] = useState<"completed" | "missed">("completed");
+  const [statusChoice, setStatusChoice] = useState<"completed" | "missed" | null>(null);
+  const [statusNote, setStatusNote] = useState("");
+  const [statusWarning, setStatusWarning] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [expandedLists, setExpandedLists] = useState({ tasks: false, categories: false });
   const plansAi = useAiAnalysis({ anchorDate: selectedDate, period: "week", scope: "plans" });
@@ -145,21 +152,41 @@ export default function RejalarPage() {
   const openStatusModal = useCallback((key: string) => {
     const task = data.tasks.find((item) => taskKey(item) === key);
     setStatusTaskKey(key);
-    setStatusChoice(task?.status === "Bajarilmadi" ? "missed" : "completed");
+    setStatusChoice(task?.status === "Bajarildi" ? "completed" : task?.status === "Bajarilmadi" ? "missed" : null);
+    setStatusNote(task?.status_note ?? task?.completed_note ?? "");
+    setStatusWarning(null);
   }, [data.tasks]);
   const closeStatusModal = useCallback(() => {
     setStatusTaskKey(null);
-    setStatusChoice("completed");
+    setStatusChoice(null);
+    setStatusNote("");
+    setStatusWarning(null);
   }, []);
-  const handleSaveTaskStatus = useCallback((event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (!statusTaskKey) {
+  const statusNoteIsValid = countStatusNoteWords(statusNote) >= MIN_STATUS_NOTE_WORDS;
+  const handleStatusNoteChange = useCallback((value: string) => {
+    setStatusNote(value);
+    if (countStatusNoteWords(value) >= MIN_STATUS_NOTE_WORDS) {
+      setStatusWarning(null);
+    }
+  }, []);
+  const handleChooseStatus = useCallback((choice: "completed" | "missed") => {
+    if (!statusNoteIsValid) {
+      setStatusWarning(t("statusNoteWarning"));
       return;
     }
 
-    const form = new FormData(event.currentTarget);
-    const note = String(form.get("status_note") || "");
+    setStatusChoice(choice);
+    setStatusWarning(null);
+  }, [statusNoteIsValid, t]);
+  const handleSaveTaskStatus = useCallback((event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!statusTaskKey || !statusChoice || !statusNoteIsValid) {
+      setStatusWarning(t("statusNoteWarning"));
+      return;
+    }
+
+    const note = statusNote.trim();
 
     updateSection(
       "tasks",
@@ -174,7 +201,7 @@ export default function RejalarPage() {
       ),
     );
     closeStatusModal();
-  }, [closeStatusModal, data.tasks, statusChoice, statusTaskKey, updateSection]);
+  }, [closeStatusModal, data.tasks, statusChoice, statusNote, statusNoteIsValid, statusTaskKey, t, updateSection]);
   const handleDeleteTask = useCallback((key: string) => {
     setDeleteError(null);
 
@@ -267,7 +294,7 @@ export default function RejalarPage() {
                           isDone
                             ? "border-emerald-300/34 bg-[linear-gradient(135deg,rgba(16,185,129,.24),rgba(34,211,238,.09),rgba(124,58,237,.035))] shadow-[0_18px_44px_rgba(16,185,129,.11),inset_0_1px_0_rgba(255,255,255,.10)] hover:border-emerald-300/42 hover:shadow-[0_20px_48px_rgba(16,185,129,.16),inset_0_1px_0_rgba(255,255,255,.11)]"
                             : isMissed
-                              ? "border-amber-300/28 bg-[linear-gradient(135deg,rgba(245,158,11,.17),rgba(244,63,94,.075),rgba(124,58,237,.025))] shadow-[0_18px_42px_rgba(245,158,11,.10),inset_0_1px_0_rgba(255,255,255,.09)] hover:border-amber-300/38 hover:shadow-[0_20px_46px_rgba(245,158,11,.14),inset_0_1px_0_rgba(255,255,255,.10)]"
+                              ? "border-rose-300/30 bg-[linear-gradient(135deg,rgba(239,68,68,.18),rgba(244,63,94,.12),rgba(124,58,237,.025))] shadow-[0_18px_42px_rgba(244,63,94,.11),inset_0_1px_0_rgba(255,255,255,.09)] hover:border-rose-300/42 hover:shadow-[0_20px_46px_rgba(244,63,94,.15),inset_0_1px_0_rgba(255,255,255,.10)]"
                               : "border-violet-300/12 bg-[linear-gradient(135deg,rgba(255,255,255,.055),rgba(124,58,237,.028))] hover:border-violet-300/20 hover:bg-violet-500/[0.052]"
                         }`}
                       >
@@ -281,7 +308,7 @@ export default function RejalarPage() {
                               isDone
                                 ? "border-emerald-200/44 bg-[linear-gradient(135deg,rgba(16,185,129,.42),rgba(34,211,238,.22))] text-emerald-50 shadow-[0_0_24px_rgba(16,185,129,.22),inset_0_1px_0_rgba(255,255,255,.18)]"
                                 : isMissed
-                                  ? "border-amber-200/42 bg-[linear-gradient(135deg,rgba(245,158,11,.34),rgba(244,63,94,.16))] text-amber-50 shadow-[0_0_22px_rgba(245,158,11,.18),inset_0_1px_0_rgba(255,255,255,.16)]"
+                                  ? "border-rose-200/44 bg-[linear-gradient(135deg,rgba(239,68,68,.38),rgba(244,63,94,.20))] text-rose-50 shadow-[0_0_22px_rgba(244,63,94,.20),inset_0_1px_0_rgba(255,255,255,.16)]"
                                   : "border-violet-300/16 bg-white/[0.035] text-transparent hover:border-emerald-300/24 hover:bg-emerald-400/8"
                             }`}
                           >
@@ -293,8 +320,8 @@ export default function RejalarPage() {
                           </button>
                           <IconBadge icon={Icon} tone={meta.tone} />
                           <div className="min-w-0">
-                            <p className={`break-words font-medium transition duration-300 ease-out ${isDone ? "text-emerald-100/75 line-through decoration-emerald-200/50" : isMissed ? "text-amber-100/80" : "text-[var(--app-text)]"}`}>{task.title}</p>
-                            <p className={`mt-1 flex flex-wrap items-center gap-2 text-sm transition duration-300 ease-out ${isDone ? "text-emerald-200/55" : isMissed ? "text-amber-200/60" : "text-slate-500"}`}>
+                            <p className={`break-words font-medium transition duration-300 ease-out ${isDone ? "text-emerald-100/75 line-through decoration-emerald-200/50" : isMissed ? "text-rose-100/80" : "text-[var(--app-text)]"}`}>{task.title}</p>
+                            <p className={`mt-1 flex flex-wrap items-center gap-2 text-sm transition duration-300 ease-out ${isDone ? "text-emerald-200/55" : isMissed ? "text-rose-200/60" : "text-slate-500"}`}>
                               <Clock3 size={14} /> {task.time}
                             </p>
                           </div>
@@ -433,11 +460,31 @@ export default function RejalarPage() {
         title={t("statusModalTitle")}
         description={statusTask?.title ?? ""}
       >
-        <form key={`${statusTaskKey ?? "task-status"}-${statusChoice}`} onSubmit={handleSaveTaskStatus} className="space-y-5">
+        <form key={statusTaskKey ?? "task-status"} onSubmit={handleSaveTaskStatus} className="space-y-5">
+          {statusWarning ? (
+            <div className="rounded-2xl border border-rose-300/18 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-100 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
+              {statusWarning}
+            </div>
+          ) : null}
+
+          <div>
+            <label className={labelClass}>{statusChoice === "completed" ? t("doneQuestion") : statusChoice === "missed" ? t("missedQuestion") : t("statusNoteQuestion")}</label>
+            <textarea
+              name="status_note"
+              className={`${fieldClass} min-h-28 resize-none`}
+              placeholder={statusChoice === "missed" ? t("missedPlaceholder") : statusChoice === "completed" ? t("donePlaceholder") : t("statusNotePlaceholder")}
+              value={statusNote}
+              onChange={(event) => handleStatusNoteChange(event.target.value)}
+            />
+            <p className={`mt-2 text-xs transition duration-300 ${statusNoteIsValid ? "text-emerald-300/80" : "text-slate-500"}`}>
+              {t("statusWordCount", { count: countStatusNoteWords(statusNote), min: MIN_STATUS_NOTE_WORDS })}
+            </p>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <button
               type="button"
-              onClick={() => setStatusChoice("completed")}
+              onClick={() => handleChooseStatus("completed")}
               className={`flex min-h-14 items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition duration-300 ease-out active:scale-[0.98] ${
                 statusChoice === "completed"
                   ? "border-emerald-300/36 bg-[linear-gradient(135deg,rgba(16,185,129,.22),rgba(34,211,238,.08))] text-emerald-100 shadow-[0_0_28px_rgba(16,185,129,.14),inset_0_1px_0_rgba(255,255,255,.12)]"
@@ -451,35 +498,22 @@ export default function RejalarPage() {
             </button>
             <button
               type="button"
-              onClick={() => setStatusChoice("missed")}
+              onClick={() => handleChooseStatus("missed")}
               className={`flex min-h-14 items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition duration-300 ease-out active:scale-[0.98] ${
                 statusChoice === "missed"
-                  ? "border-amber-300/34 bg-[linear-gradient(135deg,rgba(245,158,11,.20),rgba(244,63,94,.08))] text-amber-100 shadow-[0_0_28px_rgba(245,158,11,.12),inset_0_1px_0_rgba(255,255,255,.12)]"
-                  : "border-violet-300/14 bg-white/[0.035] text-slate-300 hover:border-amber-300/24 hover:bg-amber-400/8"
+                  ? "border-rose-300/38 bg-[linear-gradient(135deg,rgba(239,68,68,.22),rgba(244,63,94,.11))] text-rose-100 shadow-[0_0_28px_rgba(244,63,94,.14),inset_0_1px_0_rgba(255,255,255,.12)]"
+                  : "border-violet-300/14 bg-white/[0.035] text-slate-300 hover:border-rose-300/24 hover:bg-rose-400/8"
               }`}
             >
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-200/28 bg-amber-400/12 text-amber-100">
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-rose-200/30 bg-rose-400/12 text-rose-100">
                 <X size={18} strokeWidth={2.6} />
               </span>
               {t("statusMissed")}
             </button>
           </div>
 
-          <div>
-            <label className={labelClass}>{statusChoice === "completed" ? t("doneQuestion") : t("missedQuestion")}</label>
-            <textarea
-              name="status_note"
-              className={`${fieldClass} min-h-28 resize-none`}
-              placeholder={statusChoice === "completed" ? t("donePlaceholder") : t("missedPlaceholder")}
-              defaultValue={statusTask?.status_note ?? statusTask?.completed_note ?? ""}
-            />
-          </div>
-
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <PrimaryButton icon={statusChoice === "completed" ? Check : X} type="submit">{c("save")}</PrimaryButton>
-            <button type="button" onClick={closeStatusModal} className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-violet-300/14 bg-white/[0.035] px-5 py-3 text-sm font-semibold text-slate-300 transition duration-400 hover:border-violet-300/24 hover:bg-white/[0.06]">
-              {c("cancel")}
-            </button>
+            <PrimaryButton disabled={!statusChoice || !statusNoteIsValid} type="submit">{c("save")}</PrimaryButton>
           </div>
         </form>
       </Modal>
