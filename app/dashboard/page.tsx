@@ -26,10 +26,60 @@ import { taskKey, transactionKey } from "../utils/items";
 
 const chartColors = ["#ef4444", "#c084fc", "#22c55e", "#f59e0b", "#a78bfa", "#38bdf8"];
 const expenseCategoryKeys = ["food", "fastFood", "transport", "book", "clothes", "home", "health", "education", "entertainment", "other"] as const;
+type SpendingPeriod = "week" | "month";
 
 function transactionAmount(amount: number) {
   const value = Number(amount);
   return Number.isFinite(value) ? value : 0;
+}
+
+function parseISODate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function toISODate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function startOfWeek(date: Date) {
+  const next = new Date(date);
+  const day = next.getDay() || 7;
+  next.setDate(next.getDate() - day + 1);
+  return next;
+}
+
+function currentExpenseRange(period: SpendingPeriod) {
+  const today = parseISODate(todayISO());
+
+  if (period === "month") {
+    return {
+      start: toISODate(new Date(today.getFullYear(), today.getMonth(), 1)),
+      end: toISODate(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
+    };
+  }
+
+  const start = startOfWeek(today);
+
+  return {
+    start: toISODate(start),
+    end: toISODate(addDays(start, 6)),
+  };
+}
+
+function isInRange(value: string | null | undefined, start: string, end: string) {
+  const date = value?.slice(0, 10) ?? "";
+  return date >= start && date <= end;
 }
 
 export default function DashboardPage() {
@@ -44,6 +94,7 @@ export default function DashboardPage() {
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const [expandedLists, setExpandedLists] = useState({ expenses: false, habits: false, tasks: false, reminders: false });
+  const [spendingPeriod, setSpendingPeriod] = useState<SpendingPeriod>("week");
   const dashboardAi = useAiAnalysis({ anchorDate: selectedDate, period: "week", scope: "dashboard" });
   const transactionsForDate = useMemo(
     () => data.finance.transactions.filter((item) => isSameDate(item.date, selectedDate)),
@@ -116,10 +167,34 @@ export default function DashboardPage() {
 
     return Math.round((completedPlansRatio * 0.45 + expensesWithinIncome * 0.35 + mistakesPenalty * 0.2) * 100);
   }, [dailyExpense, dailyRealIncome, errorsForDate.length, tasks]);
-  const expenseTrend = useMemo(
-    () => expensesForDate.map((item, index) => ({ day: item.category || `${index + 1}`, value: transactionAmount(item.amount) })),
-    [expensesForDate],
+  const expenseRange = useMemo(() => currentExpenseRange(spendingPeriod), [spendingPeriod]);
+  const periodExpenses = useMemo(
+    () => data.finance.transactions.filter((item) => item.type === "expense" && isInRange(item.date, expenseRange.start, expenseRange.end)),
+    [data.finance.transactions, expenseRange],
   );
+  const periodExpenseTotal = useMemo(
+    () => periodExpenses.reduce((sum, item) => sum + transactionAmount(item.amount), 0),
+    [periodExpenses],
+  );
+  const expenseTrend = useMemo(() => {
+    const grouped = periodExpenses.reduce<Record<string, number>>((acc, item) => {
+      const key = item.date?.slice(0, 10) || expenseRange.start;
+      acc[key] = (acc[key] ?? 0) + transactionAmount(item.amount);
+      return acc;
+    }, {});
+
+    const points: { day: string; value: number }[] = [];
+    let current = parseISODate(expenseRange.start);
+    const end = parseISODate(expenseRange.end);
+
+    while (current <= end) {
+      const key = toISODate(current);
+      points.push({ day: shortDateLabel(key), value: grouped[key] ?? 0 });
+      current = addDays(current, 1);
+    }
+
+    return points;
+  }, [expenseRange, periodExpenses]);
   const habits = useMemo(() => {
     const grouped = errorsForDate.reduce<Record<string, number>>((acc, item) => {
       const key = item.category || c("other");
@@ -272,10 +347,22 @@ export default function DashboardPage() {
         <div className="min-w-0 space-y-6">
           <Card variant="expense">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="min-w-0 break-words text-xl font-bold">{t("weeklySpending")}</h2>
-              <span className="rounded-2xl border border-violet-300/15 bg-violet-500/10 px-3.5 py-2 text-xs font-medium text-violet-200 shadow-[inset_0_1px_0_rgba(255,255,255,.08)]">{c("thisWeek")}</span>
+              <button
+                type="button"
+                onClick={() => setSpendingPeriod((current) => current === "week" ? "month" : "week")}
+                className="min-w-0 break-words text-left text-xl font-bold transition duration-400 hover:text-violet-200"
+              >
+                {spendingPeriod === "week" ? t("weeklySpending") : t("monthlySpending")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSpendingPeriod((current) => current === "week" ? "month" : "week")}
+                className="rounded-2xl border border-violet-300/15 bg-violet-500/10 px-3.5 py-2 text-xs font-medium text-violet-200 shadow-[inset_0_1px_0_rgba(255,255,255,.08)] transition duration-400 hover:border-violet-300/25 hover:bg-violet-500/15"
+              >
+                {spendingPeriod === "week" ? c("thisWeek") : c("thisMonth")} · {formatMoney(periodExpenseTotal)}
+              </button>
             </div>
-            {expenseTrend.length ? (
+            {periodExpenseTotal > 0 ? (
               <ChartFrame className="h-[240px] sm:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%" debounce={80}>
                   <LineChart data={expenseTrend}>
