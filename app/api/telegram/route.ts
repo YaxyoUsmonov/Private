@@ -13,7 +13,9 @@ type TelegramUser = {
   id: number;
   is_bot?: boolean;
   first_name?: string;
+  last_name?: string;
   username?: string;
+  language_code?: string;
 };
 
 type TelegramMessage = {
@@ -169,6 +171,19 @@ function createTelegramUsageClient() {
   });
 }
 
+function createTelegramServiceClient() {
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error("Supabase service env vars are missing for Telegram user tracking");
+  }
+
+  return createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, { status });
 }
@@ -197,6 +212,27 @@ function getTodayKey() {
 
 function getTelegramUserId(message: TelegramMessage) {
   return message.from?.id ?? message.chat.id;
+}
+
+async function saveTelegramUser(message: TelegramMessage) {
+  try {
+    const telegramUserId = String(getTelegramUserId(message));
+    const supabase = createTelegramServiceClient();
+    const { error } = await supabase.rpc("upsert_telegram_user_profile", {
+      p_telegram_user_id: telegramUserId,
+      p_username: message.from?.username ?? null,
+      p_first_name: message.from?.first_name ?? null,
+      p_last_name: message.from?.last_name ?? null,
+      p_language_code: message.from?.language_code ?? null,
+      p_is_bot: message.from?.is_bot ?? false,
+    });
+
+    if (error) {
+      console.error("[telegram/users] Failed to save Telegram user", error);
+    }
+  } catch (error) {
+    console.error("[telegram/users] Telegram user tracking is not available", error);
+  }
 }
 
 function isAdminTelegramUser(userId: number) {
@@ -507,6 +543,7 @@ export async function POST(request: NextRequest) {
     const message = update.message;
 
     if (isTelegramMessage(message)) {
+      await saveTelegramUser(message);
       await handleTextMessage(message);
     }
 
