@@ -191,16 +191,17 @@ export default function RejalarPage() {
                       <motion.div
                         layout="position"
                         initial={false}
-                        animate={{ opacity: isDone ? 0.86 : 1, scale: isDone ? 0.992 : 1 }}
+                        animate={{ opacity: isDone ? 0.9 : 1, scale: 1, y: 0 }}
                         transition={{
-                          layout: { type: "spring", stiffness: 430, damping: 36, mass: 0.72 },
-                          opacity: { duration: 0.22, ease: "easeOut" },
-                          scale: { duration: 0.28, ease: [0.16, 1, 0.3, 1] },
+                          layout: { duration: 0.22, ease: "easeOut" },
+                          opacity: { duration: 0.2, ease: "easeOut" },
+                          scale: { duration: 0.2, ease: "easeOut" },
+                          y: { duration: 0.2, ease: "easeOut" },
                         }}
                         key={taskKey(task)}
                         className={`flex min-h-12 w-full min-w-0 transform-gpu flex-col gap-3 rounded-2xl border p-4 text-left shadow-[0_16px_34px_rgba(0,0,0,.16),inset_0_1px_0_rgba(255,255,255,.07)] transition duration-300 ease-out hover:-translate-y-0.5 sm:flex-row sm:items-center sm:justify-between ${
                           isDone
-                            ? "border-emerald-300/22 bg-[linear-gradient(135deg,rgba(16,185,129,.16),rgba(34,211,238,.055),rgba(124,58,237,.025))] hover:border-emerald-300/34 hover:shadow-[0_18px_42px_rgba(16,185,129,.13),inset_0_1px_0_rgba(255,255,255,.09)]"
+                            ? "border-emerald-300/34 bg-[linear-gradient(135deg,rgba(16,185,129,.24),rgba(34,211,238,.09),rgba(124,58,237,.035))] shadow-[0_18px_44px_rgba(16,185,129,.11),inset_0_1px_0_rgba(255,255,255,.10)] hover:border-emerald-300/42 hover:shadow-[0_20px_48px_rgba(16,185,129,.16),inset_0_1px_0_rgba(255,255,255,.11)]"
                             : "border-violet-300/12 bg-[linear-gradient(135deg,rgba(255,255,255,.055),rgba(124,58,237,.028))] hover:border-violet-300/20 hover:bg-violet-500/[0.052]"
                         }`}
                       >
@@ -212,7 +213,7 @@ export default function RejalarPage() {
                             aria-label={isDone ? "Bajarildi" : "Kutilmoqda"}
                             className={`inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,.08)] transition duration-300 ease-out active:scale-95 ${
                               isDone
-                                ? "border-emerald-300/36 bg-emerald-400/18 text-emerald-100 shadow-[0_0_24px_rgba(16,185,129,.16),inset_0_1px_0_rgba(255,255,255,.12)]"
+                                ? "border-emerald-200/44 bg-[linear-gradient(135deg,rgba(16,185,129,.42),rgba(34,211,238,.22))] text-emerald-50 shadow-[0_0_24px_rgba(16,185,129,.22),inset_0_1px_0_rgba(255,255,255,.18)]"
                                 : "border-violet-300/16 bg-white/[0.035] text-transparent hover:border-emerald-300/24 hover:bg-emerald-400/8"
                             }`}
                           >
