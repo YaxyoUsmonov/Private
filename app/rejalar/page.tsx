@@ -189,7 +189,7 @@ export default function RejalarPage() {
                 return (
                   <motion.div
                     layout
-                    transition={{ layout: { duration: 0.42, ease: [0.16, 1, 0.3, 1] } }}
+                    transition={{ layout: { duration: 0.2, ease: "easeOut" } }}
                     key={taskKey(task)}
                     className={`flex min-h-12 w-full min-w-0 transform-gpu flex-col gap-3 rounded-2xl border p-4 text-left shadow-[0_16px_34px_rgba(0,0,0,.16),inset_0_1px_0_rgba(255,255,255,.07)] transition duration-[420ms] ease-out hover:-translate-y-0.5 sm:flex-row sm:items-center sm:justify-between ${
                       isDone
