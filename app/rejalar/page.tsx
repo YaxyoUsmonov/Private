@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { LayoutGroup, motion } from "framer-motion";
+import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import { Book, Briefcase, CalendarCheck, Check, Clock3, Dumbbell, Plus, Target } from "lucide-react";
 import { Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { AiAnalysisContent } from "../components/ai-analysis-content";
@@ -180,56 +180,64 @@ export default function RejalarPage() {
           <Card alive variant="plan">
             <h2 className="mb-5 text-xl font-bold">{t("tasks")}</h2>
             <LayoutGroup>
-            <div className="space-y-3">
-              {visibleTasks.map((task) => {
-                const meta = taskMeta[task.category as keyof typeof taskMeta] ?? taskMeta.Shaxsiy;
-                const Icon = meta.icon;
-                const isDone = task.status === "Bajarildi";
+              <div className="space-y-3">
+                <AnimatePresence initial={false} mode="popLayout">
+                  {visibleTasks.map((task) => {
+                    const meta = taskMeta[task.category as keyof typeof taskMeta] ?? taskMeta.Shaxsiy;
+                    const Icon = meta.icon;
+                    const isDone = task.status === "Bajarildi";
 
-                return (
-                  <motion.div
-                    layout
-                    transition={{ layout: { duration: 0.2, ease: "easeOut" } }}
-                    key={taskKey(task)}
-                    className={`flex min-h-12 w-full min-w-0 transform-gpu flex-col gap-3 rounded-2xl border p-4 text-left shadow-[0_16px_34px_rgba(0,0,0,.16),inset_0_1px_0_rgba(255,255,255,.07)] transition duration-[420ms] ease-out hover:-translate-y-0.5 sm:flex-row sm:items-center sm:justify-between ${
-                      isDone
-                        ? "border-emerald-300/22 bg-[linear-gradient(135deg,rgba(16,185,129,.16),rgba(34,211,238,.055),rgba(124,58,237,.025))] hover:border-emerald-300/34 hover:shadow-[0_18px_42px_rgba(16,185,129,.13),inset_0_1px_0_rgba(255,255,255,.09)]"
-                        : "border-violet-300/12 bg-[linear-gradient(135deg,rgba(255,255,255,.055),rgba(124,58,237,.028))] hover:border-violet-300/20 hover:bg-violet-500/[0.052]"
-                    }`}
-                  >
-                    <div className="flex min-w-0 flex-1 items-center gap-4 text-left">
-                      <button
-                        type="button"
-                        onClick={() => toggleTask(taskKey(task))}
-                        aria-pressed={isDone}
-                        aria-label={isDone ? "Bajarildi" : "Kutilmoqda"}
-                        className={`inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,.08)] transition duration-400 ease-out active:scale-95 ${
+                    return (
+                      <motion.div
+                        layout="position"
+                        initial={false}
+                        animate={{ opacity: isDone ? 0.86 : 1, scale: isDone ? 0.992 : 1 }}
+                        transition={{
+                          layout: { type: "spring", stiffness: 430, damping: 36, mass: 0.72 },
+                          opacity: { duration: 0.22, ease: "easeOut" },
+                          scale: { duration: 0.28, ease: [0.16, 1, 0.3, 1] },
+                        }}
+                        key={taskKey(task)}
+                        className={`flex min-h-12 w-full min-w-0 transform-gpu flex-col gap-3 rounded-2xl border p-4 text-left shadow-[0_16px_34px_rgba(0,0,0,.16),inset_0_1px_0_rgba(255,255,255,.07)] transition duration-300 ease-out hover:-translate-y-0.5 sm:flex-row sm:items-center sm:justify-between ${
                           isDone
-                            ? "border-emerald-300/36 bg-emerald-400/18 text-emerald-100 shadow-[0_0_24px_rgba(16,185,129,.16),inset_0_1px_0_rgba(255,255,255,.12)]"
-                            : "border-violet-300/16 bg-white/[0.035] text-transparent hover:border-emerald-300/24 hover:bg-emerald-400/8"
+                            ? "border-emerald-300/22 bg-[linear-gradient(135deg,rgba(16,185,129,.16),rgba(34,211,238,.055),rgba(124,58,237,.025))] hover:border-emerald-300/34 hover:shadow-[0_18px_42px_rgba(16,185,129,.13),inset_0_1px_0_rgba(255,255,255,.09)]"
+                            : "border-violet-300/12 bg-[linear-gradient(135deg,rgba(255,255,255,.055),rgba(124,58,237,.028))] hover:border-violet-300/20 hover:bg-violet-500/[0.052]"
                         }`}
                       >
-                        <Check size={19} strokeWidth={2.7} className={`transition duration-300 ${isDone ? "scale-100 opacity-100" : "scale-75 opacity-0"}`} />
-                      </button>
-                      <IconBadge icon={Icon} tone={meta.tone} />
-                      <div className="min-w-0">
-                        <p className={`break-words font-medium transition duration-400 ${isDone ? "text-emerald-100/75 line-through decoration-emerald-200/50" : "text-[var(--app-text)]"}`}>{task.title}</p>
-                        <p className={`mt-1 flex flex-wrap items-center gap-2 text-sm transition duration-400 ${isDone ? "text-emerald-200/55" : "text-slate-500"}`}>
-                          <Clock3 size={14} /> {task.time}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
-                      <span className="rounded-lg border border-violet-300/10 bg-violet-500/10 px-3 py-2 text-violet-300">{categoryLabel(task.category)}</span>
-                      <span className="rounded-lg border border-fuchsia-300/10 bg-fuchsia-500/10 px-3 py-2 text-fuchsia-200">{priorityLabel(task.priority)}</span>
-                      <EditButton onClick={() => openEditTask(taskKey(task))} />
-                      <ConfirmDeleteButton onConfirm={() => handleDeleteTask(taskKey(task))} />
-                    </div>
-                  </motion.div>
-                );
-              })}
-              {!visibleTasks.length ? <EmptyState /> : null}
-            </div>
+                        <div className="flex min-w-0 flex-1 items-center gap-4 text-left">
+                          <button
+                            type="button"
+                            onClick={() => toggleTask(taskKey(task))}
+                            aria-pressed={isDone}
+                            aria-label={isDone ? "Bajarildi" : "Kutilmoqda"}
+                            className={`inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,.08)] transition duration-300 ease-out active:scale-95 ${
+                              isDone
+                                ? "border-emerald-300/36 bg-emerald-400/18 text-emerald-100 shadow-[0_0_24px_rgba(16,185,129,.16),inset_0_1px_0_rgba(255,255,255,.12)]"
+                                : "border-violet-300/16 bg-white/[0.035] text-transparent hover:border-emerald-300/24 hover:bg-emerald-400/8"
+                            }`}
+                          >
+                            <Check size={19} strokeWidth={2.7} className={`transition duration-200 ease-out ${isDone ? "scale-100 opacity-100" : "scale-75 opacity-0"}`} />
+                          </button>
+                          <IconBadge icon={Icon} tone={meta.tone} />
+                          <div className="min-w-0">
+                            <p className={`break-words font-medium transition duration-300 ease-out ${isDone ? "text-emerald-100/75 line-through decoration-emerald-200/50" : "text-[var(--app-text)]"}`}>{task.title}</p>
+                            <p className={`mt-1 flex flex-wrap items-center gap-2 text-sm transition duration-300 ease-out ${isDone ? "text-emerald-200/55" : "text-slate-500"}`}>
+                              <Clock3 size={14} /> {task.time}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
+                          <span className="rounded-lg border border-violet-300/10 bg-violet-500/10 px-3 py-2 text-violet-300">{categoryLabel(task.category)}</span>
+                          <span className="rounded-lg border border-fuchsia-300/10 bg-fuchsia-500/10 px-3 py-2 text-fuchsia-200">{priorityLabel(task.priority)}</span>
+                          <EditButton onClick={() => openEditTask(taskKey(task))} />
+                          <ConfirmDeleteButton onConfirm={() => handleDeleteTask(taskKey(task))} />
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+                {!visibleTasks.length ? <EmptyState /> : null}
+              </div>
             </LayoutGroup>
             {tasks.length > 4 ? <ShowMoreButton expanded={expandedLists.tasks} onClick={() => setExpandedLists((current) => ({ ...current, tasks: !current.tasks }))} /> : null}
           </Card>
