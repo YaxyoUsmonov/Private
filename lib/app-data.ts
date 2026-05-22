@@ -16,8 +16,11 @@ export type TaskItem = {
   time: string;
   category: string;
   priority: string;
-  status: "Kutilmoqda" | "Bajarildi";
+  status: "Kutilmoqda" | "Bajarildi" | "Bajarilmadi";
   date: string;
+  status_note?: string;
+  completed_note?: string;
+  status_result?: "pending" | "completed" | "missed";
 };
 
 export type HabitItem = {

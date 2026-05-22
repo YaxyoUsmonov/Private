@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
-import { Book, Briefcase, CalendarCheck, Check, Clock3, Dumbbell, Plus, Target } from "lucide-react";
+import { Book, Briefcase, CalendarCheck, Check, Clock3, Dumbbell, Plus, Target, X } from "lucide-react";
 import { Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { AiAnalysisContent } from "../components/ai-analysis-content";
 import { ChartFrame } from "../components/chart-frame";
@@ -58,6 +58,8 @@ export default function RejalarPage() {
   );
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
+  const [statusTaskKey, setStatusTaskKey] = useState<string | null>(null);
+  const [statusChoice, setStatusChoice] = useState<"completed" | "missed">("completed");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [expandedLists, setExpandedLists] = useState({ tasks: false, categories: false });
   const plansAi = useAiAnalysis({ anchorDate: selectedDate, period: "week", scope: "plans" });
@@ -96,6 +98,10 @@ export default function RejalarPage() {
     () => editingTaskKey ? data.tasks.find((task) => taskKey(task) === editingTaskKey) : null,
     [data.tasks, editingTaskKey],
   );
+  const statusTask = useMemo(
+    () => statusTaskKey ? data.tasks.find((task) => taskKey(task) === statusTaskKey) : null,
+    [data.tasks, statusTaskKey],
+  );
 
   const openNewTask = useCallback(() => {
     setEditingTaskKey(null);
@@ -117,6 +123,7 @@ export default function RejalarPage() {
     const form = new FormData(event.currentTarget);
     const category = String(form.get("category") || "Ta’lim");
     const nextTask: TaskItem = {
+      ...editingTask,
       id: editingTask?.id ?? createItemId(),
       title: String(form.get("title")),
       time: String(form.get("time") || "09:00"),
@@ -135,14 +142,39 @@ export default function RejalarPage() {
     event.currentTarget.reset();
   }, [closeModal, data.tasks, editingTask, editingTaskKey, selectedDate, updateSection]);
 
-  const toggleTask = useCallback((key: string) => {
+  const openStatusModal = useCallback((key: string) => {
+    const task = data.tasks.find((item) => taskKey(item) === key);
+    setStatusTaskKey(key);
+    setStatusChoice(task?.status === "Bajarilmadi" ? "missed" : "completed");
+  }, [data.tasks]);
+  const closeStatusModal = useCallback(() => {
+    setStatusTaskKey(null);
+    setStatusChoice("completed");
+  }, []);
+  const handleSaveTaskStatus = useCallback((event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!statusTaskKey) {
+      return;
+    }
+
+    const form = new FormData(event.currentTarget);
+    const note = String(form.get("status_note") || "");
+
     updateSection(
       "tasks",
       data.tasks.map((task) =>
-        taskKey(task) === key ? { ...task, status: task.status === "Bajarildi" ? "Kutilmoqda" : "Bajarildi" } : task,
+        taskKey(task) === statusTaskKey ? {
+          ...task,
+          status: statusChoice === "completed" ? "Bajarildi" : "Bajarilmadi",
+          status_result: statusChoice,
+          status_note: note,
+          completed_note: statusChoice === "completed" ? note : undefined,
+        } : task,
       ),
     );
-  }, [data.tasks, updateSection]);
+    closeStatusModal();
+  }, [closeStatusModal, data.tasks, statusChoice, statusTaskKey, updateSection]);
   const handleDeleteTask = useCallback((key: string) => {
     setDeleteError(null);
 
@@ -154,7 +186,8 @@ export default function RejalarPage() {
   }, [c, data.tasks, updateSection]);
   const sortedTasks = useMemo(
     () => [...tasks].sort((a, b) => {
-      const statusOrder = Number(a.status === "Bajarildi") - Number(b.status === "Bajarildi");
+      const order = { Kutilmoqda: 0, Bajarilmadi: 1, Bajarildi: 2 } as const;
+      const statusOrder = (order[a.status] ?? 0) - (order[b.status] ?? 0);
 
       if (statusOrder !== 0) {
         return statusOrder;
@@ -216,6 +249,7 @@ export default function RejalarPage() {
                     const meta = taskMeta[normalizeTaskCategory(task.category) as keyof typeof taskMeta] ?? taskMeta.Shaxsiy;
                     const Icon = meta.icon;
                     const isDone = task.status === "Bajarildi";
+                    const isMissed = task.status === "Bajarilmadi";
 
                     return (
                       <motion.div
@@ -232,27 +266,35 @@ export default function RejalarPage() {
                         className={`flex min-h-12 w-full min-w-0 transform-gpu flex-col gap-3 rounded-2xl border p-4 text-left shadow-[0_16px_34px_rgba(0,0,0,.16),inset_0_1px_0_rgba(255,255,255,.07)] transition duration-300 ease-out hover:-translate-y-0.5 sm:flex-row sm:items-center sm:justify-between ${
                           isDone
                             ? "border-emerald-300/34 bg-[linear-gradient(135deg,rgba(16,185,129,.24),rgba(34,211,238,.09),rgba(124,58,237,.035))] shadow-[0_18px_44px_rgba(16,185,129,.11),inset_0_1px_0_rgba(255,255,255,.10)] hover:border-emerald-300/42 hover:shadow-[0_20px_48px_rgba(16,185,129,.16),inset_0_1px_0_rgba(255,255,255,.11)]"
-                            : "border-violet-300/12 bg-[linear-gradient(135deg,rgba(255,255,255,.055),rgba(124,58,237,.028))] hover:border-violet-300/20 hover:bg-violet-500/[0.052]"
+                            : isMissed
+                              ? "border-amber-300/28 bg-[linear-gradient(135deg,rgba(245,158,11,.17),rgba(244,63,94,.075),rgba(124,58,237,.025))] shadow-[0_18px_42px_rgba(245,158,11,.10),inset_0_1px_0_rgba(255,255,255,.09)] hover:border-amber-300/38 hover:shadow-[0_20px_46px_rgba(245,158,11,.14),inset_0_1px_0_rgba(255,255,255,.10)]"
+                              : "border-violet-300/12 bg-[linear-gradient(135deg,rgba(255,255,255,.055),rgba(124,58,237,.028))] hover:border-violet-300/20 hover:bg-violet-500/[0.052]"
                         }`}
                       >
                         <div className="flex min-w-0 flex-1 items-center gap-4 text-left">
                           <button
                             type="button"
-                            onClick={() => toggleTask(taskKey(task))}
-                            aria-pressed={isDone}
-                            aria-label={isDone ? "Bajarildi" : "Kutilmoqda"}
+                            onClick={() => openStatusModal(taskKey(task))}
+                            aria-pressed={isDone || isMissed}
+                            aria-label={isDone ? t("statusDone") : isMissed ? t("statusMissed") : t("pending")}
                             className={`inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,.08)] transition duration-300 ease-out active:scale-95 ${
                               isDone
                                 ? "border-emerald-200/44 bg-[linear-gradient(135deg,rgba(16,185,129,.42),rgba(34,211,238,.22))] text-emerald-50 shadow-[0_0_24px_rgba(16,185,129,.22),inset_0_1px_0_rgba(255,255,255,.18)]"
-                                : "border-violet-300/16 bg-white/[0.035] text-transparent hover:border-emerald-300/24 hover:bg-emerald-400/8"
+                                : isMissed
+                                  ? "border-amber-200/42 bg-[linear-gradient(135deg,rgba(245,158,11,.34),rgba(244,63,94,.16))] text-amber-50 shadow-[0_0_22px_rgba(245,158,11,.18),inset_0_1px_0_rgba(255,255,255,.16)]"
+                                  : "border-violet-300/16 bg-white/[0.035] text-transparent hover:border-emerald-300/24 hover:bg-emerald-400/8"
                             }`}
                           >
-                            <Check size={19} strokeWidth={2.7} className={`transition duration-200 ease-out ${isDone ? "scale-100 opacity-100" : "scale-75 opacity-0"}`} />
+                            {isMissed ? (
+                              <X size={19} strokeWidth={2.7} className="scale-100 opacity-100 transition duration-200 ease-out" />
+                            ) : (
+                              <Check size={19} strokeWidth={2.7} className={`transition duration-200 ease-out ${isDone ? "scale-100 opacity-100" : "scale-75 opacity-0"}`} />
+                            )}
                           </button>
                           <IconBadge icon={Icon} tone={meta.tone} />
                           <div className="min-w-0">
-                            <p className={`break-words font-medium transition duration-300 ease-out ${isDone ? "text-emerald-100/75 line-through decoration-emerald-200/50" : "text-[var(--app-text)]"}`}>{task.title}</p>
-                            <p className={`mt-1 flex flex-wrap items-center gap-2 text-sm transition duration-300 ease-out ${isDone ? "text-emerald-200/55" : "text-slate-500"}`}>
+                            <p className={`break-words font-medium transition duration-300 ease-out ${isDone ? "text-emerald-100/75 line-through decoration-emerald-200/50" : isMissed ? "text-amber-100/80" : "text-[var(--app-text)]"}`}>{task.title}</p>
+                            <p className={`mt-1 flex flex-wrap items-center gap-2 text-sm transition duration-300 ease-out ${isDone ? "text-emerald-200/55" : isMissed ? "text-amber-200/60" : "text-slate-500"}`}>
                               <Clock3 size={14} /> {task.time}
                             </p>
                           </div>
@@ -379,6 +421,63 @@ export default function RejalarPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <PrimaryButton icon={Plus} type="submit">{editingTask ? c("save") : t("save")}</PrimaryButton>
             <button type="button" onClick={closeModal} className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-violet-300/14 bg-white/[0.035] px-5 py-3 text-sm font-semibold text-slate-300 transition duration-400 hover:border-violet-300/24 hover:bg-white/[0.06]">
+              {c("cancel")}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={Boolean(statusTask)}
+        onClose={closeStatusModal}
+        title={t("statusModalTitle")}
+        description={statusTask?.title ?? ""}
+      >
+        <form key={`${statusTaskKey ?? "task-status"}-${statusChoice}`} onSubmit={handleSaveTaskStatus} className="space-y-5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setStatusChoice("completed")}
+              className={`flex min-h-14 items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition duration-300 ease-out active:scale-[0.98] ${
+                statusChoice === "completed"
+                  ? "border-emerald-300/36 bg-[linear-gradient(135deg,rgba(16,185,129,.22),rgba(34,211,238,.08))] text-emerald-100 shadow-[0_0_28px_rgba(16,185,129,.14),inset_0_1px_0_rgba(255,255,255,.12)]"
+                  : "border-violet-300/14 bg-white/[0.035] text-slate-300 hover:border-emerald-300/24 hover:bg-emerald-400/8"
+              }`}
+            >
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-200/28 bg-emerald-400/12 text-emerald-100">
+                <Check size={18} strokeWidth={2.6} />
+              </span>
+              {t("statusDone")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusChoice("missed")}
+              className={`flex min-h-14 items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition duration-300 ease-out active:scale-[0.98] ${
+                statusChoice === "missed"
+                  ? "border-amber-300/34 bg-[linear-gradient(135deg,rgba(245,158,11,.20),rgba(244,63,94,.08))] text-amber-100 shadow-[0_0_28px_rgba(245,158,11,.12),inset_0_1px_0_rgba(255,255,255,.12)]"
+                  : "border-violet-300/14 bg-white/[0.035] text-slate-300 hover:border-amber-300/24 hover:bg-amber-400/8"
+              }`}
+            >
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-200/28 bg-amber-400/12 text-amber-100">
+                <X size={18} strokeWidth={2.6} />
+              </span>
+              {t("statusMissed")}
+            </button>
+          </div>
+
+          <div>
+            <label className={labelClass}>{statusChoice === "completed" ? t("doneQuestion") : t("missedQuestion")}</label>
+            <textarea
+              name="status_note"
+              className={`${fieldClass} min-h-28 resize-none`}
+              placeholder={statusChoice === "completed" ? t("donePlaceholder") : t("missedPlaceholder")}
+              defaultValue={statusTask?.status_note ?? statusTask?.completed_note ?? ""}
+            />
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <PrimaryButton icon={statusChoice === "completed" ? Check : X} type="submit">{c("save")}</PrimaryButton>
+            <button type="button" onClick={closeStatusModal} className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-violet-300/14 bg-white/[0.035] px-5 py-3 text-sm font-semibold text-slate-300 transition duration-400 hover:border-violet-300/24 hover:bg-white/[0.06]">
               {c("cancel")}
             </button>
           </div>

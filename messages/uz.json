@@ -172,7 +172,14 @@
     "save": "Rejani saqlash",
     "completedCount": "{completed} / {total} ta reja bajarildi",
     "aiUnavailableDetail": "AI API ulanmagan",
-    "exampleTask": "Masalan: 30 daqiqa ta’limga vaqt ajratish"
+    "exampleTask": "Masalan: 30 daqiqa ta’limga vaqt ajratish",
+    "statusModalTitle": "Vazifa holatini belgilang",
+    "statusDone": "Bajardim",
+    "statusMissed": "Bajarmadim",
+    "doneQuestion": "Bajarish qanday o‘tdi?",
+    "missedQuestion": "Nima sabab bajarmadingiz?",
+    "donePlaceholder": "Masalan: diqqat yaxshi bo‘ldi, rejani vaqtida tugatdim.",
+    "missedPlaceholder": "Masalan: vaqt yetmadi yoki boshqa ishlar ustuvor bo‘ldi."
   },
   "mistakes": {
     "eyebrow": "Odatlar nazorati",

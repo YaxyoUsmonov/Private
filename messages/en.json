@@ -172,7 +172,14 @@
     "save": "Save plan",
     "completedCount": "{completed} / {total} plans completed",
     "aiUnavailableDetail": "AI API is not connected",
-    "exampleTask": "Example: read for 30 minutes"
+    "exampleTask": "Example: read for 30 minutes",
+    "statusModalTitle": "Set task status",
+    "statusDone": "I did it",
+    "statusMissed": "I missed it",
+    "doneQuestion": "How did completing it go?",
+    "missedQuestion": "Why did you miss it?",
+    "donePlaceholder": "Example: I stayed focused and finished on time.",
+    "missedPlaceholder": "Example: I ran out of time or another priority came up."
   },
   "mistakes": {
     "eyebrow": "Habit control",
