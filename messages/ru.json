@@ -235,10 +235,10 @@
     "missedQuestion": "Почему вы не выполнили задачу?",
     "donePlaceholder": "Например: удалось сфокусироваться и завершить вовремя.",
     "missedPlaceholder": "Например: не хватило времени или появились другие приоритеты.",
-    "statusNoteQuestion": "Сначала напишите комментарий, затем выберите статус.",
-    "statusNotePlaceholder": "Напишите минимум 10 слов о том, как прошла задача.",
-    "statusNoteWarning": "Сначала напишите минимум 10 слов в комментарии.",
-    "statusWordCount": "{count} / {min} слов"
+    "statusNoteQuestion": "Выберите статус и напишите комментарий.",
+    "statusNotePlaceholder": "Напишите минимум 10 символов о том, как прошла задача.",
+    "statusNoteWarning": "Напишите минимум 10 символов.",
+    "statusCharCount": "{count} / {min} символов"
   },
   "mistakes": {
     "eyebrow": "???????? ????????",

@@ -180,10 +180,10 @@
     "missedQuestion": "Nima sabab bajarmadingiz?",
     "donePlaceholder": "Masalan: diqqat yaxshi bo‘ldi, rejani vaqtida tugatdim.",
     "missedPlaceholder": "Masalan: vaqt yetmadi yoki boshqa ishlar ustuvor bo‘ldi.",
-    "statusNoteQuestion": "Avval izoh yozing, keyin holatni tanlang.",
-    "statusNotePlaceholder": "Kamida 10 ta so‘z bilan vazifa qanday o‘tganini yozing.",
-    "statusNoteWarning": "Avval izohga kamida 10 ta so‘z yozing.",
-    "statusWordCount": "{count} / {min} so‘z"
+    "statusNoteQuestion": "Statusni tanlang va izoh yozing.",
+    "statusNotePlaceholder": "Kamida 10 ta harf bilan vazifa qanday o‘tganini yozing.",
+    "statusNoteWarning": "Kamida 10 ta harf yozing.",
+    "statusCharCount": "{count} / {min} harf"
   },
   "mistakes": {
     "eyebrow": "Odatlar nazorati",

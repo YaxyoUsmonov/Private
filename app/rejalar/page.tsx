@@ -16,10 +16,10 @@ import { isSameDate, shortDateLabel, todayISO } from "../utils/date";
 import { createItemId, taskKey } from "../utils/items";
 
 const chartColors = ["#c084fc", "#22c55e", "#f59e0b", "#a78bfa", "#64748b", "#38bdf8"];
-const MIN_STATUS_NOTE_WORDS = 10;
+const MIN_STATUS_NOTE_CHARS = 10;
 
-function countStatusNoteWords(value: string) {
-  return value.trim().split(/\s+/).filter(Boolean).length;
+function countStatusNoteChars(value: string) {
+  return value.trim().length;
 }
 
 const taskMeta = {
@@ -162,22 +162,17 @@ export default function RejalarPage() {
     setStatusNote("");
     setStatusWarning(null);
   }, []);
-  const statusNoteIsValid = countStatusNoteWords(statusNote) >= MIN_STATUS_NOTE_WORDS;
+  const statusNoteIsValid = countStatusNoteChars(statusNote) >= MIN_STATUS_NOTE_CHARS;
   const handleStatusNoteChange = useCallback((value: string) => {
     setStatusNote(value);
-    if (countStatusNoteWords(value) >= MIN_STATUS_NOTE_WORDS) {
+    if (countStatusNoteChars(value) >= MIN_STATUS_NOTE_CHARS) {
       setStatusWarning(null);
     }
   }, []);
   const handleChooseStatus = useCallback((choice: "completed" | "missed") => {
-    if (!statusNoteIsValid) {
-      setStatusWarning(t("statusNoteWarning"));
-      return;
-    }
-
     setStatusChoice(choice);
     setStatusWarning(null);
-  }, [statusNoteIsValid, t]);
+  }, []);
   const handleSaveTaskStatus = useCallback((event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -467,20 +462,6 @@ export default function RejalarPage() {
             </div>
           ) : null}
 
-          <div>
-            <label className={labelClass}>{statusChoice === "completed" ? t("doneQuestion") : statusChoice === "missed" ? t("missedQuestion") : t("statusNoteQuestion")}</label>
-            <textarea
-              name="status_note"
-              className={`${fieldClass} min-h-28 resize-none`}
-              placeholder={statusChoice === "missed" ? t("missedPlaceholder") : statusChoice === "completed" ? t("donePlaceholder") : t("statusNotePlaceholder")}
-              value={statusNote}
-              onChange={(event) => handleStatusNoteChange(event.target.value)}
-            />
-            <p className={`mt-2 text-xs transition duration-300 ${statusNoteIsValid ? "text-emerald-300/80" : "text-slate-500"}`}>
-              {t("statusWordCount", { count: countStatusNoteWords(statusNote), min: MIN_STATUS_NOTE_WORDS })}
-            </p>
-          </div>
-
           <div className="grid gap-3 sm:grid-cols-2">
             <button
               type="button"
@@ -510,6 +491,20 @@ export default function RejalarPage() {
               </span>
               {t("statusMissed")}
             </button>
+          </div>
+
+          <div>
+            <label className={labelClass}>{statusChoice === "completed" ? t("doneQuestion") : statusChoice === "missed" ? t("missedQuestion") : t("statusNoteQuestion")}</label>
+            <textarea
+              name="status_note"
+              className={`${fieldClass} min-h-28 resize-none`}
+              placeholder={statusChoice === "missed" ? t("missedPlaceholder") : statusChoice === "completed" ? t("donePlaceholder") : t("statusNotePlaceholder")}
+              value={statusNote}
+              onChange={(event) => handleStatusNoteChange(event.target.value)}
+            />
+            <p className={`mt-2 text-xs transition duration-300 ${statusNoteIsValid ? "text-emerald-300/80" : "text-slate-500"}`}>
+              {t("statusCharCount", { count: countStatusNoteChars(statusNote), min: MIN_STATUS_NOTE_CHARS })}
+            </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
