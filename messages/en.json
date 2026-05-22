@@ -182,7 +182,7 @@
     "missedPlaceholder": "Example: I ran out of time or another priority came up.",
     "statusNoteQuestion": "Choose a status and write a reflection.",
     "statusNotePlaceholder": "Write at least 10 characters about how this task went.",
-    "statusNoteWarning": "Write at least 10 characters.",
+    "statusNoteWarning": "The note must contain at least 10 characters.",
     "statusCharCount": "{count} / {min} characters"
   },
   "mistakes": {

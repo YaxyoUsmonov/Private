@@ -163,6 +163,7 @@ export default function RejalarPage() {
     setStatusWarning(null);
   }, []);
   const statusNoteIsValid = countStatusNoteChars(statusNote) >= MIN_STATUS_NOTE_CHARS;
+  const statusCanSave = Boolean(statusChoice && statusNoteIsValid);
   const handleStatusNoteChange = useCallback((value: string) => {
     setStatusNote(value);
     if (countStatusNoteChars(value) >= MIN_STATUS_NOTE_CHARS) {
@@ -324,8 +325,12 @@ export default function RejalarPage() {
                         <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
                           <span className="rounded-lg border border-violet-300/10 bg-violet-500/10 px-3 py-2 text-violet-300">{categoryLabel(task.category)}</span>
                           <span className="rounded-lg border border-fuchsia-300/10 bg-fuchsia-500/10 px-3 py-2 text-fuchsia-200">{priorityLabel(task.priority)}</span>
-                          <EditButton onClick={() => openEditTask(taskKey(task))} />
-                          <ConfirmDeleteButton onConfirm={() => handleDeleteTask(taskKey(task))} />
+                          {!isDone && !isMissed ? (
+                            <>
+                              <EditButton onClick={() => openEditTask(taskKey(task))} />
+                              <ConfirmDeleteButton onConfirm={() => handleDeleteTask(taskKey(task))} />
+                            </>
+                          ) : null}
                         </div>
                       </motion.div>
                     );
@@ -508,7 +513,21 @@ export default function RejalarPage() {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <PrimaryButton disabled={!statusChoice || !statusNoteIsValid} type="submit">{c("save")}</PrimaryButton>
+            <button
+              type="submit"
+              aria-disabled={!statusCanSave}
+              onClick={(event) => {
+                if (!statusCanSave) {
+                  event.preventDefault();
+                  setStatusWarning(t("statusNoteWarning"));
+                }
+              }}
+              className={`inline-flex min-h-12 w-full touch-manipulation transform-gpu items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[linear-gradient(135deg,#8b5cf6,#d946ef)] px-5 py-3 text-sm font-semibold !text-white shadow-[0_18px_44px_rgba(139,92,246,.28),inset_0_1px_0_rgba(255,255,255,.22)] transition-[background-color,box-shadow,transform,opacity] duration-500 hover:shadow-[0_22px_56px_rgba(139,92,246,.36),inset_0_1px_0_rgba(255,255,255,.28)] active:scale-[0.992] sm:w-auto ${
+                statusCanSave ? "cursor-pointer opacity-100" : "cursor-not-allowed opacity-55"
+              }`}
+            >
+              {c("save")}
+            </button>
           </div>
         </form>
       </Modal>

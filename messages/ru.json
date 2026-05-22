@@ -237,7 +237,7 @@
     "missedPlaceholder": "Например: не хватило времени или появились другие приоритеты.",
     "statusNoteQuestion": "Выберите статус и напишите комментарий.",
     "statusNotePlaceholder": "Напишите минимум 10 символов о том, как прошла задача.",
-    "statusNoteWarning": "Напишите минимум 10 символов.",
+    "statusNoteWarning": "Комментарий должен содержать минимум 10 символов.",
     "statusCharCount": "{count} / {min} символов"
   },
   "mistakes": {

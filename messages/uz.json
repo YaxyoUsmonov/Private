@@ -182,7 +182,7 @@
     "missedPlaceholder": "Masalan: vaqt yetmadi yoki boshqa ishlar ustuvor bo‘ldi.",
     "statusNoteQuestion": "Statusni tanlang va izoh yozing.",
     "statusNotePlaceholder": "Kamida 10 ta harf bilan vazifa qanday o‘tganini yozing.",
-    "statusNoteWarning": "Kamida 10 ta harf yozing.",
+    "statusNoteWarning": "Izoh kamida 10 ta harfdan iborat bo‘lishi kerak.",
     "statusCharCount": "{count} / {min} harf"
   },
   "mistakes": {
