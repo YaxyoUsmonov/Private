@@ -332,7 +332,8 @@
     "personal": "Shaxsiy",
     "sleep": "Uyqu",
     "phone": "Telefon",
-    "plan": "Reja"
+    "plan": "Reja",
+    "planMissed": "Reja bajarmaslik"
   },
   "status": {
     "completed": "Bajarildi",

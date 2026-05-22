@@ -332,7 +332,8 @@
     "personal": "Personal",
     "sleep": "Sleep",
     "phone": "Phone",
-    "plan": "Plan"
+    "plan": "Plan",
+    "planMissed": "Missed plan"
   },
   "status": {
     "completed": "Completed",

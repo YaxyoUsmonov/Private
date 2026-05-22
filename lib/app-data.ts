@@ -41,6 +41,9 @@ export type ErrorItem = {
   category: string;
   severity: string;
   date: string;
+  source?: "plans" | string;
+  source_task_id?: string;
+  resolved?: boolean;
 };
 
 export type ConclusionItem = {

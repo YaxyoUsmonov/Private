@@ -55,7 +55,7 @@ export default function RejalarPage() {
   const cat = useTranslations("categories");
   const priorityT = useTranslations("priority");
   const modals = useTranslations("modals");
-  const { data, loading, error, updateSection } = useAppData();
+  const { data, loading, error, updateSection, updateData } = useAppData();
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const tasks = useMemo(
     () => data.tasks.filter((task) => isSameDate(task.date, selectedDate)),
@@ -184,20 +184,85 @@ export default function RejalarPage() {
 
     const note = statusNote.trim();
 
-    updateSection(
-      "tasks",
-      data.tasks.map((task) =>
-        taskKey(task) === statusTaskKey ? {
+    updateData((current) => {
+      const nextStatus: TaskItem["status"] = statusChoice === "completed" ? "Bajarildi" : "Bajarilmadi";
+      let linkedTask = current.tasks.find((task) => taskKey(task) === statusTaskKey) ?? null;
+      const nextTasks: TaskItem[] = current.tasks.map((task) => {
+        if (taskKey(task) !== statusTaskKey) {
+          return task;
+        }
+
+        const nextTask: TaskItem = {
           ...task,
-          status: statusChoice === "completed" ? "Bajarildi" : "Bajarilmadi",
+          status: nextStatus,
           status_result: statusChoice,
           status_note: note,
           completed_note: statusChoice === "completed" ? note : undefined,
-        } : task,
-      ),
-    );
+        };
+        linkedTask = nextTask;
+        return nextTask;
+      });
+
+      if (!linkedTask) {
+        return current;
+      }
+
+      const taskForMistake = linkedTask;
+      const sourceTaskId = taskForMistake.id ?? statusTaskKey;
+      const existingMistake = current.journal.errors.find((item) => item.source === "plans" && item.source_task_id === sourceTaskId);
+      const nextErrors = current.journal.errors.map((item) => {
+        if (item.source !== "plans" || item.source_task_id !== sourceTaskId) {
+          return item;
+        }
+
+        if (statusChoice === "completed") {
+          return {
+            ...item,
+            reason: note,
+            resolved: true,
+          };
+        }
+
+        return {
+          ...item,
+          title: taskForMistake.title,
+          reason: note,
+          time: taskForMistake.time,
+          category: "Reja bajarmaslik",
+          severity: "O'rta",
+          date: taskForMistake.date || selectedDate,
+          resolved: false,
+        };
+      });
+
+      return {
+        ...current,
+        tasks: nextTasks,
+        journal: {
+          ...current.journal,
+          errors: statusChoice === "missed" && !existingMistake
+            ? [
+              {
+                id: createItemId(),
+                title: taskForMistake.title,
+                reason: note,
+                time: taskForMistake.time,
+                repeat: "1 marta",
+                category: "Reja bajarmaslik",
+                severity: "O'rta",
+                date: taskForMistake.date || selectedDate,
+                source: "plans",
+                source_task_id: sourceTaskId,
+                resolved: false,
+              },
+              ...nextErrors,
+            ]
+            : nextErrors,
+        },
+      };
+    });
     closeStatusModal();
-  }, [closeStatusModal, data.tasks, statusChoice, statusNote, statusNoteIsValid, statusTaskKey, t, updateSection]);
+  }, [closeStatusModal, selectedDate, statusChoice, statusNote, statusNoteIsValid, statusTaskKey, t, updateData]);
   const handleDeleteTask = useCallback((key: string) => {
     setDeleteError(null);
 

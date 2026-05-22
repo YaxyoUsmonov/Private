@@ -20,6 +20,7 @@ const errorMeta = {
   Uyqu: { icon: Moon, tone: "violet" as const },
   Telefon: { icon: Smartphone, tone: "blue" as const },
   Reja: { icon: CircleAlert, tone: "amber" as const },
+  "Reja bajarmaslik": { icon: CircleAlert, tone: "red" as const },
   Moliya: { icon: AlertTriangle, tone: "red" as const },
 };
 
@@ -78,6 +79,7 @@ export default function XatolarimPage() {
     { value: "Uyqu", label: cat("sleep") },
     { value: "Telefon", label: cat("phone") },
     { value: "Reja", label: cat("plan") },
+    { value: "Reja bajarmaslik", label: cat("planMissed") },
     { value: "Moliya", label: cat("finance") },
   ];
   const severityOptions = [
