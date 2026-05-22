@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { LayoutGroup, motion } from "framer-motion";
 import { Book, Briefcase, CalendarCheck, Check, Clock3, Dumbbell, Plus, Target } from "lucide-react";
 import { Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { AiAnalysisContent } from "../components/ai-analysis-content";
@@ -131,7 +132,11 @@ export default function RejalarPage() {
       setDeleteError(c("deleteErrorPlan"));
     }
   }, [c, data.tasks, updateSection]);
-  const visibleTasks = expandedLists.tasks ? tasks : tasks.slice(0, 4);
+  const sortedTasks = useMemo(
+    () => [...tasks].sort((a, b) => Number(a.status === "Bajarildi") - Number(b.status === "Bajarildi")),
+    [tasks],
+  );
+  const visibleTasks = expandedLists.tasks ? sortedTasks : sortedTasks.slice(0, 4);
   const visibleCategories = expandedLists.categories ? categories : categories.slice(0, 4);
   const categoryOptions = [
     { value: "Oqish", label: cat("reading") },
@@ -172,37 +177,9 @@ export default function RejalarPage() {
 
       <div className="grid min-w-0 gap-6 xl:grid-cols-[2fr_1fr]">
         <div className="min-w-0 space-y-6">
-          <Card variant="plan">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="min-w-0 break-words text-xl font-bold">{t("weeklyProgress")}</h2>
-              <span className="rounded-2xl border border-violet-300/15 bg-violet-500/10 px-3.5 py-2 text-xs font-medium text-violet-200 shadow-[inset_0_1px_0_rgba(255,255,255,.08)]">{c("thisWeek")}</span>
-            </div>
-            {dynamicProgressData.length ? (
-              <ChartFrame className="h-[230px] sm:h-[280px]">
-                <ResponsiveContainer width="100%" height="100%" debounce={80}>
-                  <LineChart data={dynamicProgressData}>
-                    <XAxis dataKey="day" stroke="#c4b5fd" />
-                    <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,.12)" }} />
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#AB55F7"
-                      strokeWidth={4}
-                      dot={{ r: 4, fill: "#c084fc", stroke: "#ede9fe", strokeWidth: 2, className: "chart-dot-pulse" }}
-                      activeDot={{ r: 6, fill: "#d946ef", stroke: "#f5d0fe", strokeWidth: 2, className: "chart-dot-pulse" }}
-                      style={{ filter: "drop-shadow(0 0 10px rgba(171,85,247,.44))" }}
-                      isAnimationActive
-                      animationDuration={560}
-                      animationEasing="ease-out"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </ChartFrame>
-            ) : <EmptyState />}
-          </Card>
-
           <Card alive variant="plan">
             <h2 className="mb-5 text-xl font-bold">{t("tasks")}</h2>
+            <LayoutGroup>
             <div className="space-y-3">
               {visibleTasks.map((task) => {
                 const meta = taskMeta[task.category as keyof typeof taskMeta] ?? taskMeta.Shaxsiy;
@@ -210,7 +187,9 @@ export default function RejalarPage() {
                 const isDone = task.status === "Bajarildi";
 
                 return (
-                  <div
+                  <motion.div
+                    layout
+                    transition={{ layout: { duration: 0.42, ease: [0.16, 1, 0.3, 1] } }}
                     key={taskKey(task)}
                     className={`flex min-h-12 w-full min-w-0 transform-gpu flex-col gap-3 rounded-2xl border p-4 text-left shadow-[0_16px_34px_rgba(0,0,0,.16),inset_0_1px_0_rgba(255,255,255,.07)] transition duration-[420ms] ease-out hover:-translate-y-0.5 sm:flex-row sm:items-center sm:justify-between ${
                       isDone
@@ -246,12 +225,42 @@ export default function RejalarPage() {
                       <EditButton onClick={() => openEditTask(taskKey(task))} />
                       <ConfirmDeleteButton onConfirm={() => handleDeleteTask(taskKey(task))} />
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
               {!visibleTasks.length ? <EmptyState /> : null}
             </div>
+            </LayoutGroup>
             {tasks.length > 4 ? <ShowMoreButton expanded={expandedLists.tasks} onClick={() => setExpandedLists((current) => ({ ...current, tasks: !current.tasks }))} /> : null}
+          </Card>
+
+          <Card variant="plan">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="min-w-0 break-words text-xl font-bold">{t("weeklyProgress")}</h2>
+              <span className="rounded-2xl border border-violet-300/15 bg-violet-500/10 px-3.5 py-2 text-xs font-medium text-violet-200 shadow-[inset_0_1px_0_rgba(255,255,255,.08)]">{c("thisWeek")}</span>
+            </div>
+            {dynamicProgressData.length ? (
+              <ChartFrame className="h-[230px] sm:h-[280px]">
+                <ResponsiveContainer width="100%" height="100%" debounce={80}>
+                  <LineChart data={dynamicProgressData}>
+                    <XAxis dataKey="day" stroke="#c4b5fd" />
+                    <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,.12)" }} />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#AB55F7"
+                      strokeWidth={4}
+                      dot={{ r: 4, fill: "#c084fc", stroke: "#ede9fe", strokeWidth: 2, className: "chart-dot-pulse" }}
+                      activeDot={{ r: 6, fill: "#d946ef", stroke: "#f5d0fe", strokeWidth: 2, className: "chart-dot-pulse" }}
+                      style={{ filter: "drop-shadow(0 0 10px rgba(171,85,247,.44))" }}
+                      isAnimationActive
+                      animationDuration={560}
+                      animationEasing="ease-out"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartFrame>
+            ) : <EmptyState />}
           </Card>
         </div>
 
