@@ -30,6 +30,20 @@ function normalizeTaskCategory(value: string) {
   return value === "Oqish" ? "Ta’lim" : value;
 }
 
+function taskTimeOrder(value: string | null | undefined) {
+  if (!value) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const [hours, minutes] = value.split(":").map(Number);
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return hours * 60 + minutes;
+}
+
 export default function RejalarPage() {
   const t = useTranslations("plans");
   const c = useTranslations("common");
@@ -139,7 +153,15 @@ export default function RejalarPage() {
     }
   }, [c, data.tasks, updateSection]);
   const sortedTasks = useMemo(
-    () => [...tasks].sort((a, b) => Number(a.status === "Bajarildi") - Number(b.status === "Bajarildi")),
+    () => [...tasks].sort((a, b) => {
+      const statusOrder = Number(a.status === "Bajarildi") - Number(b.status === "Bajarildi");
+
+      if (statusOrder !== 0) {
+        return statusOrder;
+      }
+
+      return taskTimeOrder(a.time) - taskTimeOrder(b.time);
+    }),
     [tasks],
   );
   const categoryOptions = [
