@@ -18,11 +18,17 @@ import { createItemId, taskKey } from "../utils/items";
 const chartColors = ["#c084fc", "#22c55e", "#f59e0b", "#a78bfa", "#64748b", "#38bdf8"];
 
 const taskMeta = {
-  Oqish: { icon: Book, tone: "blue" as const },
+  "Ta’lim": { icon: Book, tone: "blue" as const },
   Sport: { icon: Dumbbell, tone: "green" as const },
   Moliya: { icon: Briefcase, tone: "violet" as const },
   Shaxsiy: { icon: Target, tone: "amber" as const },
+  "Ish faoliyati": { icon: Briefcase, tone: "blue" as const },
+  Karyera: { icon: Target, tone: "violet" as const },
 };
+
+function normalizeTaskCategory(value: string) {
+  return value === "Oqish" ? "Ta’lim" : value;
+}
 
 export default function RejalarPage() {
   const t = useTranslations("plans");
@@ -60,7 +66,7 @@ export default function RejalarPage() {
   ), [completed, pending, tasks.length, t]);
   const categories = useMemo(() => {
     const grouped = tasks.reduce<Record<string, number>>((acc, task) => {
-      const key = task.category || c("other");
+      const key = task.category ? normalizeTaskCategory(task.category) : c("other");
       acc[key] = (acc[key] ?? 0) + 1;
       return acc;
     }, {});
@@ -95,7 +101,7 @@ export default function RejalarPage() {
   const handleSaveTask = useCallback((event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const category = String(form.get("category") || "Shaxsiy");
+    const category = String(form.get("category") || "Ta’lim");
     const nextTask: TaskItem = {
       id: editingTask?.id ?? createItemId(),
       title: String(form.get("title")),
@@ -136,20 +142,22 @@ export default function RejalarPage() {
     () => [...tasks].sort((a, b) => Number(a.status === "Bajarildi") - Number(b.status === "Bajarildi")),
     [tasks],
   );
-  const visibleTasks = expandedLists.tasks ? sortedTasks : sortedTasks.slice(0, 4);
-  const visibleCategories = expandedLists.categories ? categories : categories.slice(0, 4);
   const categoryOptions = [
-    { value: "Oqish", label: cat("reading") },
-    { value: "Sport", label: cat("sport") },
+    { value: "Ta’lim", label: cat("education") },
     { value: "Moliya", label: cat("finance") },
     { value: "Shaxsiy", label: cat("personal") },
+    { value: "Sport", label: cat("sport") },
+    { value: "Ish faoliyati", label: cat("workActivity") },
+    { value: "Karyera", label: cat("career") },
   ];
+  const visibleTasks = expandedLists.tasks ? sortedTasks : sortedTasks.slice(0, 4);
+  const visibleCategories = expandedLists.categories ? categories : categories.slice(0, 4);
   const priorityOptions = [
     { value: "Muhim", label: priorityT("high") },
     { value: "Orta", label: priorityT("medium") },
     { value: "Past", label: priorityT("low") },
   ];
-  const categoryLabel = (value: string) => categoryOptions.find((item) => item.value === value)?.label ?? value;
+  const categoryLabel = (value: string) => categoryOptions.find((item) => item.value === normalizeTaskCategory(value))?.label ?? normalizeTaskCategory(value);
   const priorityLabel = (value: string) => priorityOptions.find((item) => item.value === value)?.label ?? value;
 
   return (
@@ -183,7 +191,7 @@ export default function RejalarPage() {
               <div className="space-y-3">
                 <AnimatePresence initial={false} mode="popLayout">
                   {visibleTasks.map((task) => {
-                    const meta = taskMeta[task.category as keyof typeof taskMeta] ?? taskMeta.Shaxsiy;
+                    const meta = taskMeta[normalizeTaskCategory(task.category) as keyof typeof taskMeta] ?? taskMeta.Shaxsiy;
                     const Icon = meta.icon;
                     const isDone = task.status === "Bajarildi";
 
@@ -335,7 +343,7 @@ export default function RejalarPage() {
             </div>
             <div>
               <label className={labelClass}>{t("category")}</label>
-              <select name="category" className={fieldClass} defaultValue={editingTask?.category ?? "Oqish"}>
+              <select name="category" className={fieldClass} defaultValue={normalizeTaskCategory(editingTask?.category ?? "Ta’lim")}>
                 {categoryOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </select>
             </div>

@@ -20,7 +20,7 @@
     "showLess": "Kamroq ko'rsatish",
     "empty": "Ma'lumot qo'shilgach shu yerda ko'rinadi.",
     "noData": "Hozircha ma'lumot yo'q",
-    "selectedDate": "Tanlangan sana bo?yicha",
+    "selectedDate": "Tanlangan sana bo‘yicha",
     "date": "Sana",
     "amount": "Miqdor",
     "category": "Kategoriya",
@@ -67,7 +67,7 @@
     "description": "Moliyangiz, rejalaringiz va shaxsiy odatlaringizni bitta joyda kuzating.",
     "google": "Google bilan kirish",
     "emailLogin": "Email orqali kirish",
-    "signup": "Ro?yxatdan o?tish",
+    "signup": "Ro‘yxatdan o‘tish",
     "email": "Email",
     "password": "Parol",
     "emailPlaceholder": "email@example.com",
@@ -146,7 +146,7 @@
     "saveIncome": "Kirimni saqlash",
     "saveExpense": "Xarajatni saqlash",
     "editTransaction": "Tranzaksiyani tahrirlash",
-    "selectedDateDetail": "Tanlangan sana bo?yicha"
+    "selectedDateDetail": "Tanlangan sana bo‘yicha"
   },
   "plans": {
     "eyebrow": "Kun tartibi",
@@ -172,7 +172,7 @@
     "save": "Rejani saqlash",
     "completedCount": "{completed} / {total} ta reja bajarildi",
     "aiUnavailableDetail": "AI API ulanmagan",
-    "exampleTask": "Masalan: 30 daqiqa kitob o?qish"
+    "exampleTask": "Masalan: 30 daqiqa ta’limga vaqt ajratish"
   },
   "mistakes": {
     "eyebrow": "Odatlar nazorati",
@@ -197,7 +197,7 @@
     "selectedDay": "TANLANGAN KUN",
     "improvementDetail": "Xato kamayishi real data bilan hisoblanadi",
     "editTitle": "Xatoni tahrirlash",
-    "severity": "Og?irlik",
+    "severity": "Og‘irlik",
     "repeatCount": "Necha marta",
     "repeatTimes": "{count} marta",
     "reasonPlaceholder": "Asosiy sababni yozing",
@@ -223,7 +223,7 @@
     "modalDescription": "Xulosa, kayfiyat va eng muhim odatni kiriting. AI hisobot API ulangandan keyin ishlaydi.",
     "moodDetail": "Kunlik kayfiyat bahosi",
     "completedPlansDetail": "Bajarilgan rejalar",
-    "selectedPeriodDetail": "Tanlangan davr bo?yicha",
+    "selectedPeriodDetail": "Tanlangan davr bo‘yicha",
     "noAnalysisLong": "AI tahlili uchun API ulanmagan. AI API ulangandan keyin haftalik, oylik va yillik tahlillar shu yerda chiqadi.",
     "plansCompleted": "Rejalar bajarildi",
     "expenses": "Xarajatlar",
@@ -252,11 +252,11 @@
     "email": "Email",
     "joined": "Qo'shilgan sana",
     "quote": "Har kuni qilinadigan kichik harakatlar katta natijalarni yaratadi.",
-    "productivityDetail": "Kunlik unumdorlik ko?rsatkichi",
+    "productivityDetail": "Kunlik unumdorlik ko‘rsatkichi",
     "focusDetail": "Fokus uchun ajratilgan vaqt",
     "achievementsDetail": "Jami yutuqlar soni",
     "privateAccount": "PRIVATE hisob",
-    "heroTitle": "Kechagidan yaxshiroq bo?l.",
+    "heroTitle": "Kechagidan yaxshiroq bo‘l.",
     "name": "Ism",
     "bio": "Bio",
     "levelInput": "Daraja",
@@ -309,11 +309,13 @@
     "book": "Kitob",
     "clothes": "Kiyim",
     "home": "Uy",
-    "health": "Sog?liq",
-    "education": "Ta?lim",
-    "entertainment": "O?yin-kulgi",
+    "health": "Sog‘liq",
+    "education": "Ta’lim",
+    "entertainment": "O‘yin-kulgi",
     "other": "Boshqa",
-    "reading": "O?qish",
+    "reading": "Ta’lim",
+    "workActivity": "Ish faoliyati",
+    "career": "Karyera",
     "sport": "Sport",
     "finance": "Moliya",
     "personal": "Shaxsiy",
@@ -328,7 +330,7 @@
   },
   "priority": {
     "high": "Muhim",
-    "medium": "O?rta",
+    "medium": "O‘rta",
     "low": "Past"
   },
   "ai": {
@@ -355,11 +357,11 @@
     "emptyPrompt": "Moliyangiz, rejalaringiz, xatolaringiz yoki xulosalaringiz haqida savol bering. AI mavjud app data asosida javob beradi.",
     "typing": "AI yozmoqda...",
     "placeholder": "Savol yozing...",
-    "clearTitle": "Chatni o?chirish?",
-    "clearDescription": "Barcha AI suhbatlari o?chirib tashlanadi. Bu amalni ortga qaytarib bo?lmaydi.",
+    "clearTitle": "Chatni o‘chirish?",
+    "clearDescription": "Barcha AI suhbatlari o‘chirib tashlanadi. Bu amalni ortga qaytarib bo‘lmaydi.",
     "cancel": "Bekor qilish",
-    "delete": "O?chirish",
-    "deleting": "O?chirilmoqda..."
+    "delete": "O‘chirish",
+    "deleting": "O‘chirilmoqda..."
   },
   "modals": {
     "editTransactionTitle": "Tranzaksiyani tahrirlash",
