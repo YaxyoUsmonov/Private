@@ -23,6 +23,22 @@ export type TaskItem = {
   status_result?: "pending" | "completed" | "missed";
 };
 
+export type MonthlyGoalItem = {
+  id?: string;
+  title: string;
+  description?: string;
+  category: string;
+  type: "manual" | "plans_category";
+  target_value: number;
+  current_value: number;
+  unit: string;
+  month: number;
+  year: number;
+  completed: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type HabitItem = {
   id?: string;
   title: string;
@@ -102,6 +118,7 @@ export type FinanceData = {
 export type AppData = {
   habits: HabitItem[];
   tasks: TaskItem[];
+  monthly_goals: MonthlyGoalItem[];
   streaks: StreaksData;
   journal: JournalData;
   settings: SettingsData;
@@ -113,6 +130,7 @@ export type AppData = {
 export const defaultAppData: AppData = {
   habits: [],
   tasks: [],
+  monthly_goals: [],
   streaks: {
     current: 0,
     best: 0,
@@ -179,6 +197,22 @@ function sanitizeLegacyDemoData(data: AppData): AppData {
       ...task,
       date: task.date ?? "",
     })),
+    monthly_goals: (Array.isArray(data.monthly_goals) ? data.monthly_goals : []).map((goal) => {
+      const targetValue = Math.max(1, Number(goal.target_value) || 1);
+      const currentValue = Math.max(0, Number(goal.current_value) || 0);
+
+      return {
+        ...goal,
+        id: goal.id ?? "",
+        description: goal.description ?? "",
+        type: goal.type ?? "manual",
+        target_value: targetValue,
+        current_value: currentValue,
+        completed: Boolean(goal.completed || currentValue >= targetValue),
+        created_at: goal.created_at ?? "",
+        updated_at: goal.updated_at ?? "",
+      };
+    }),
     journal: {
       ...data.journal,
       errors: data.journal.errors.map((error) => ({
@@ -206,6 +240,7 @@ export function mergeAppData(data: Partial<AppData> | null | undefined): AppData
     settings: { ...defaultAppData.settings, ...data?.settings },
     profile_data: { ...defaultAppData.profile_data, ...data?.profile_data },
     finance: { ...defaultAppData.finance, ...data?.finance },
+    monthly_goals: data?.monthly_goals ?? defaultAppData.monthly_goals,
   });
 }
 

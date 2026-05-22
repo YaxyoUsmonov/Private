@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
-import { Book, Briefcase, CalendarCheck, Check, Clock3, Dumbbell, Plus, Target, X } from "lucide-react";
+import { Book, Briefcase, CalendarCheck, Check, Clock3, Dumbbell, Plus, Target, Trophy, X } from "lucide-react";
 import { Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { AiAnalysisContent } from "../components/ai-analysis-content";
 import { ChartFrame } from "../components/chart-frame";
@@ -11,7 +11,7 @@ import { DataState } from "../components/data-state";
 import { Card, ConfirmDeleteButton, DateInput, EditButton, EmptyState, fieldClass, IconBadge, labelClass, Modal, PageHeader, PrimaryButton, ProgressBar, ShowMoreButton, StatCard } from "../components/ui";
 import { useAppData } from "../hooks/use-app-data";
 import { useAiAnalysis } from "../hooks/use-ai-analysis";
-import type { TaskItem } from "../../lib/app-data";
+import type { MonthlyGoalItem, TaskItem } from "../../lib/app-data";
 import { isSameDate, shortDateLabel, todayISO } from "../utils/date";
 import { createItemId, taskKey } from "../utils/items";
 
@@ -49,6 +49,18 @@ function taskTimeOrder(value: string | null | undefined) {
   return hours * 60 + minutes;
 }
 
+function goalProgress(goal: MonthlyGoalItem) {
+  return Math.min(100, Math.round((goal.current_value / Math.max(goal.target_value, 1)) * 100));
+}
+
+function monthParts(value: string) {
+  const [year, month] = value.split("-").map(Number);
+  return {
+    month: Number.isFinite(month) ? month : new Date().getMonth() + 1,
+    year: Number.isFinite(year) ? year : new Date().getFullYear(),
+  };
+}
+
 export default function RejalarPage() {
   const t = useTranslations("plans");
   const c = useTranslations("common");
@@ -57,18 +69,25 @@ export default function RejalarPage() {
   const modals = useTranslations("modals");
   const { data, loading, error, updateSection, updateData } = useAppData();
   const [selectedDate, setSelectedDate] = useState(todayISO());
+  const selectedMonth = useMemo(() => monthParts(selectedDate), [selectedDate]);
   const tasks = useMemo(
     () => data.tasks.filter((task) => isSameDate(task.date, selectedDate)),
     [data.tasks, selectedDate],
   );
+  const monthlyGoals = useMemo(
+    () => data.monthly_goals.filter((goal) => goal.month === selectedMonth.month && goal.year === selectedMonth.year),
+    [data.monthly_goals, selectedMonth.month, selectedMonth.year],
+  );
   const [modalOpen, setModalOpen] = useState(false);
+  const [goalModalOpen, setGoalModalOpen] = useState(false);
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
+  const [editingGoalKey, setEditingGoalKey] = useState<string | null>(null);
   const [statusTaskKey, setStatusTaskKey] = useState<string | null>(null);
   const [statusChoice, setStatusChoice] = useState<"completed" | "missed" | null>(null);
   const [statusNote, setStatusNote] = useState("");
   const [statusWarning, setStatusWarning] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [expandedLists, setExpandedLists] = useState({ tasks: false, categories: false });
+  const [expandedLists, setExpandedLists] = useState({ tasks: false, categories: false, goals: false });
   const plansAi = useAiAnalysis({ anchorDate: selectedDate, period: "week", scope: "plans" });
   const { completed, pending, progress } = useMemo(() => {
     const completedTasks = tasks.filter((task) => task.status === "Bajarildi").length;
@@ -87,6 +106,11 @@ export default function RejalarPage() {
       { day: t("pending"), value: pending },
     ] : []
   ), [completed, pending, tasks.length, t]);
+  const monthlyGoalsCompleted = monthlyGoals.filter((goal) => goal.completed).length;
+  const monthlyGoalsProgress = monthlyGoals.length
+    ? Math.round(monthlyGoals.reduce((sum, goal) => sum + goalProgress(goal), 0) / monthlyGoals.length)
+    : 0;
+  const visibleGoals = expandedLists.goals ? monthlyGoals : monthlyGoals.slice(0, 3);
   const categories = useMemo(() => {
     const grouped = tasks.reduce<Record<string, number>>((acc, task) => {
       const key = task.category ? normalizeTaskCategory(task.category) : c("other");
@@ -109,6 +133,10 @@ export default function RejalarPage() {
     () => statusTaskKey ? data.tasks.find((task) => taskKey(task) === statusTaskKey) : null,
     [data.tasks, statusTaskKey],
   );
+  const editingGoal = useMemo(
+    () => editingGoalKey ? data.monthly_goals.find((goal) => goal.id === editingGoalKey) : null,
+    [data.monthly_goals, editingGoalKey],
+  );
 
   const openNewTask = useCallback(() => {
     setEditingTaskKey(null);
@@ -123,6 +151,21 @@ export default function RejalarPage() {
   const closeModal = useCallback(() => {
     setModalOpen(false);
     setEditingTaskKey(null);
+  }, []);
+
+  const openNewGoal = useCallback(() => {
+    setEditingGoalKey(null);
+    setGoalModalOpen(true);
+  }, []);
+
+  const openEditGoal = useCallback((key: string) => {
+    setEditingGoalKey(key);
+    setGoalModalOpen(true);
+  }, []);
+
+  const closeGoalModal = useCallback(() => {
+    setGoalModalOpen(false);
+    setEditingGoalKey(null);
   }, []);
 
   const handleSaveTask = useCallback((event: FormEvent<HTMLFormElement>) => {
@@ -148,6 +191,77 @@ export default function RejalarPage() {
     closeModal();
     event.currentTarget.reset();
   }, [closeModal, data.tasks, editingTask, editingTaskKey, selectedDate, updateSection]);
+
+  const handleSaveGoal = useCallback((event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const now = new Date().toISOString();
+    const targetValue = Math.max(1, Number(form.get("target_value") || 1));
+    const currentValue = Math.max(0, Number(form.get("current_value") || 0));
+    const nextGoal: MonthlyGoalItem = {
+      id: editingGoal?.id ?? createItemId(),
+      title: String(form.get("title") || "").trim(),
+      description: String(form.get("description") || "").trim(),
+      category: String(form.get("category") || "Shaxsiy"),
+      type: "manual",
+      target_value: targetValue,
+      current_value: currentValue,
+      unit: String(form.get("unit") || "marta").trim() || "marta",
+      month: editingGoal?.month ?? selectedMonth.month,
+      year: editingGoal?.year ?? selectedMonth.year,
+      completed: currentValue >= targetValue,
+      created_at: editingGoal?.created_at ?? now,
+      updated_at: now,
+    };
+
+    if (!nextGoal.title) {
+      return;
+    }
+
+    updateSection(
+      "monthly_goals",
+      editingGoalKey
+        ? data.monthly_goals.map((goal) => goal.id === editingGoalKey ? nextGoal : goal)
+        : [nextGoal, ...data.monthly_goals],
+    );
+    closeGoalModal();
+    event.currentTarget.reset();
+  }, [closeGoalModal, data.monthly_goals, editingGoal, editingGoalKey, selectedMonth.month, selectedMonth.year, updateSection]);
+
+  const updateGoal = useCallback((key: string, updater: (goal: MonthlyGoalItem) => MonthlyGoalItem) => {
+    updateSection(
+      "monthly_goals",
+      data.monthly_goals.map((goal) => goal.id === key ? updater(goal) : goal),
+    );
+  }, [data.monthly_goals, updateSection]);
+
+  const incrementGoal = useCallback((key: string) => {
+    updateGoal(key, (goal) => {
+      const currentValue = Math.min(goal.target_value, goal.current_value + 1);
+      return {
+        ...goal,
+        current_value: currentValue,
+        completed: currentValue >= goal.target_value,
+        updated_at: new Date().toISOString(),
+      };
+    });
+  }, [updateGoal]);
+
+  const toggleGoalCompleted = useCallback((key: string) => {
+    updateGoal(key, (goal) => {
+      const completed = !goal.completed;
+      return {
+        ...goal,
+        current_value: completed ? Math.max(goal.current_value, goal.target_value) : Math.min(goal.current_value, Math.max(goal.target_value - 1, 0)),
+        completed,
+        updated_at: new Date().toISOString(),
+      };
+    });
+  }, [updateGoal]);
+
+  const handleDeleteGoal = useCallback((key: string) => {
+    updateSection("monthly_goals", data.monthly_goals.filter((goal) => goal.id !== key));
+  }, [data.monthly_goals, updateSection]);
 
   const openStatusModal = useCallback((key: string) => {
     const task = data.tasks.find((item) => taskKey(item) === key);
@@ -293,6 +407,15 @@ export default function RejalarPage() {
     { value: "Ish faoliyati", label: cat("workActivity") },
     { value: "Karyera", label: cat("career") },
   ];
+  const goalCategoryOptions = [
+    { value: "Ta’lim", label: cat("education") },
+    { value: "Sport", label: cat("sport") },
+    { value: "Moliya", label: cat("finance") },
+    { value: "Shaxsiy", label: cat("personal") },
+    { value: "Intizom", label: t("discipline") },
+    { value: "Sog‘liq", label: cat("health") },
+    { value: "Boshqa", label: c("other") },
+  ];
   const visibleTasks = expandedLists.tasks ? sortedTasks : sortedTasks.slice(0, 4);
   const visibleCategories = expandedLists.categories ? categories : categories.slice(0, 4);
   const priorityOptions = [
@@ -301,6 +424,7 @@ export default function RejalarPage() {
     { value: "Past", label: priorityT("low") },
   ];
   const categoryLabel = (value: string) => categoryOptions.find((item) => item.value === normalizeTaskCategory(value))?.label ?? normalizeTaskCategory(value);
+  const goalCategoryLabel = (value: string) => goalCategoryOptions.find((item) => item.value === value)?.label ?? value;
   const priorityLabel = (value: string) => priorityOptions.find((item) => item.value === value)?.label ?? value;
 
   return (
@@ -439,9 +563,81 @@ export default function RejalarPage() {
 
         <div className="min-w-0 space-y-6">
           <Card alive variant="ai">
-            <h2 className="mb-5 text-lg font-bold">{t("goalProgress")}</h2>
-            <ProgressBar value={progress} color="bg-violet-400" />
-            <p className="mt-3 text-sm text-slate-400">{t("completedCount", { completed, total: tasks.length })}</p>
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-bold">{t("monthlyGoals")}</h2>
+              <button
+                type="button"
+                onClick={openNewGoal}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-violet-300/16 bg-violet-500/10 px-3.5 py-2 text-xs font-semibold text-violet-100 transition duration-400 hover:border-violet-300/24 hover:bg-violet-500/16"
+              >
+                <Plus size={15} /> {t("addGoal")}
+              </button>
+            </div>
+
+            {monthlyGoals.length ? (
+              <>
+                <div className="mb-5 rounded-2xl border border-violet-300/12 bg-white/[0.035] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
+                  <div className="mb-3 flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-3xl font-black text-white">{monthlyGoalsProgress}%</p>
+                      <p className="text-sm text-slate-400">{t("completedGoals", { completed: monthlyGoalsCompleted, total: monthlyGoals.length })}</p>
+                    </div>
+                    <IconBadge icon={Trophy} tone="violet" />
+                  </div>
+                  <ProgressBar value={monthlyGoalsProgress} color="bg-violet-400" />
+                </div>
+
+                <div className="space-y-3">
+                  {visibleGoals.map((goal) => {
+                    const value = goalProgress(goal);
+
+                    return (
+                      <div key={goal.id} className={`rounded-2xl border p-4 transition duration-300 hover:-translate-y-0.5 ${
+                        goal.completed
+                          ? "border-emerald-300/28 bg-[linear-gradient(135deg,rgba(16,185,129,.18),rgba(34,211,238,.06))]"
+                          : "border-violet-300/12 bg-[linear-gradient(135deg,rgba(255,255,255,.045),rgba(124,58,237,.026))]"
+                      }`}>
+                        <div className="mb-3 flex min-w-0 items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className={`break-words font-semibold ${goal.completed ? "text-emerald-100" : "text-[var(--app-text)]"}`}>{goal.title}</p>
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                              <span className="rounded-lg border border-violet-300/10 bg-violet-500/10 px-2.5 py-1.5 text-violet-200">{goalCategoryLabel(goal.category)}</span>
+                              {goal.completed ? <span className="rounded-lg border border-emerald-300/16 bg-emerald-500/10 px-2.5 py-1.5 text-emerald-200">{t("completedBadge")}</span> : null}
+                            </div>
+                          </div>
+                          <span className="shrink-0 text-sm font-semibold text-violet-200">{value}%</span>
+                        </div>
+                        <div className="mb-3 flex min-w-0 justify-between gap-3 text-sm text-slate-400">
+                          <span className="break-words">{goal.current_value} / {goal.target_value} {goal.unit}</span>
+                          <span>{t("progressLabel")}</span>
+                        </div>
+                        <ProgressBar value={value} color={goal.completed ? "bg-emerald-400" : "bg-violet-400"} />
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                          <button type="button" onClick={() => incrementGoal(goal.id ?? "")} className="inline-flex min-h-9 items-center rounded-xl border border-violet-300/14 bg-white/[0.035] px-3 text-xs font-semibold text-violet-100 transition hover:border-violet-300/24 hover:bg-violet-500/10">+1</button>
+                          <button type="button" onClick={() => toggleGoalCompleted(goal.id ?? "")} className="inline-flex min-h-9 items-center rounded-xl border border-emerald-300/14 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 transition hover:border-emerald-300/24 hover:bg-emerald-500/16">{goal.completed ? t("markActive") : t("markCompleted")}</button>
+                          <EditButton onClick={() => openEditGoal(goal.id ?? "")} />
+                          <ConfirmDeleteButton onConfirm={() => handleDeleteGoal(goal.id ?? "")} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {monthlyGoals.length > 3 ? <ShowMoreButton expanded={expandedLists.goals} onClick={() => setExpandedLists((current) => ({ ...current, goals: !current.goals }))} /> : null}
+              </>
+            ) : (
+              <div className="rounded-2xl border border-violet-300/12 bg-white/[0.035] p-5 text-center">
+                <IconBadge icon={Trophy} tone="violet" />
+                <p className="mt-4 font-semibold">{t("noMonthlyGoals")}</p>
+                <p className="mt-2 text-sm text-slate-400">{t("noMonthlyGoalsDescription")}</p>
+                <button
+                  type="button"
+                  onClick={openNewGoal}
+                  className="mt-5 inline-flex min-h-11 items-center justify-center rounded-2xl border border-violet-300/16 bg-violet-500/12 px-4 text-sm font-semibold text-violet-100 transition duration-400 hover:border-violet-300/24 hover:bg-violet-500/18"
+                >
+                  {t("addMonthlyGoal")}
+                </button>
+              </div>
+            )}
           </Card>
 
           <Card variant="plan">
@@ -513,6 +709,50 @@ export default function RejalarPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <PrimaryButton icon={Plus} type="submit">{editingTask ? c("save") : t("save")}</PrimaryButton>
             <button type="button" onClick={closeModal} className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-violet-300/14 bg-white/[0.035] px-5 py-3 text-sm font-semibold text-slate-300 transition duration-400 hover:border-violet-300/24 hover:bg-white/[0.06]">
+              {c("cancel")}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={goalModalOpen}
+        onClose={closeGoalModal}
+        title={editingGoal ? t("editGoal") : t("addMonthlyGoal")}
+        description={t("monthlyGoalModalDescription")}
+      >
+        <form key={editingGoalKey ?? "new-goal"} onSubmit={handleSaveGoal} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className={labelClass}>{t("goalTitle")}</label>
+              <input name="title" className={fieldClass} placeholder={t("goalTitlePlaceholder")} defaultValue={editingGoal?.title ?? ""} required />
+            </div>
+            <div>
+              <label className={labelClass}>{t("category")}</label>
+              <select name="category" className={fieldClass} defaultValue={editingGoal?.category ?? "Shaxsiy"}>
+                {goalCategoryOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>{t("unit")}</label>
+              <input name="unit" className={fieldClass} placeholder={t("unitPlaceholder")} defaultValue={editingGoal?.unit ?? "marta"} />
+            </div>
+            <div>
+              <label className={labelClass}>{t("targetValue")}</label>
+              <input name="target_value" type="number" min="1" step="1" className={fieldClass} defaultValue={editingGoal?.target_value ?? 1} required />
+            </div>
+            <div>
+              <label className={labelClass}>{t("currentValue")}</label>
+              <input name="current_value" type="number" min="0" step="1" className={fieldClass} defaultValue={editingGoal?.current_value ?? 0} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelClass}>{t("descriptionField")}</label>
+              <textarea name="description" className={`${fieldClass} min-h-24 resize-none`} placeholder={t("goalDescriptionPlaceholder")} defaultValue={editingGoal?.description ?? ""} />
+            </div>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <PrimaryButton icon={Plus} type="submit">{c("save")}</PrimaryButton>
+            <button type="button" onClick={closeGoalModal} className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-violet-300/14 bg-white/[0.035] px-5 py-3 text-sm font-semibold text-slate-300 transition duration-400 hover:border-violet-300/24 hover:bg-white/[0.06]">
               {c("cancel")}
             </button>
           </div>
