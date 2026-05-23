@@ -204,7 +204,6 @@ export default function RejalarPage() {
   const [goalUnit, setGoalUnit] = useState<string>("kun");
   const [goalCustomUnit, setGoalCustomUnit] = useState("");
   const [trackerFrequency, setTrackerFrequency] = useState<TrackerItem["frequency"]>("daily");
-  const [trackerLinkedGoalId, setTrackerLinkedGoalId] = useState("");
   const [taskGoalLinkEnabled, setTaskGoalLinkEnabled] = useState(false);
   const [taskLinkedGoalId, setTaskLinkedGoalId] = useState("");
   const [goalFeedback, setGoalFeedback] = useState<string | null>(null);
@@ -364,7 +363,6 @@ export default function RejalarPage() {
     setGoalUnit(recommendedGoalUnits.Shaxsiy);
     setGoalCustomUnit("");
     setTrackerFrequency("daily");
-    setTrackerLinkedGoalId("");
     setGoalModalOpen(true);
   }, []);
 
@@ -376,7 +374,6 @@ export default function RejalarPage() {
     setGoalUnit(goal?.unit && goalUnitOptions.includes(goal.unit as (typeof goalUnitOptions)[number]) ? goal.unit : "boshqa");
     setGoalCustomUnit(goal?.unit && !goalUnitOptions.includes(goal.unit as (typeof goalUnitOptions)[number]) ? goal.unit : "");
     setTrackerFrequency("daily");
-    setTrackerLinkedGoalId("");
     setGoalModalOpen(true);
   }, [data.monthly_goals]);
 
@@ -388,7 +385,6 @@ export default function RejalarPage() {
     setGoalUnit(recommendedGoalUnits.Shaxsiy);
     setGoalCustomUnit("");
     setTrackerFrequency("daily");
-    setTrackerLinkedGoalId("");
   }, []);
 
   const handleSaveTask = useCallback((event: FormEvent<HTMLFormElement>) => {
@@ -456,7 +452,7 @@ export default function RejalarPage() {
         unit,
         reminder_time: String(form.get("reminder_time") || ""),
         notes_enabled: true,
-        linked_goal_id: String(form.get("linked_goal_id") || "") || undefined,
+        linked_goal_id: undefined,
         streak: 0,
         longest_streak: 0,
         activity_log: [],
@@ -1288,13 +1284,6 @@ export default function RejalarPage() {
                 <div>
                   <label className={labelClass}>{t("reminderTime")}</label>
                   <input name="reminder_time" type="time" className={fieldClass} defaultValue="09:00" />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className={labelClass}>{t("linkToMonthlyGoal")}</label>
-                  <select name="linked_goal_id" className={fieldClass} value={trackerLinkedGoalId} onChange={(event) => setTrackerLinkedGoalId(event.target.value)}>
-                    <option value="">{t("selectGoal")}</option>
-                    {monthlyGoals.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
-                  </select>
                 </div>
               </>
             ) : null}
