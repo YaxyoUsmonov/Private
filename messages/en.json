@@ -232,6 +232,7 @@
     "estimatedCompletion": "Estimated completion",
     "daysLeft": "days left",
     "goalCompleted": "Goal completed",
+    "goalLabel": "Goal",
     "todayPlan": "Today’s plan",
     "deadlineDate": "Deadline date",
     "deadlineLabel": "Deadline",

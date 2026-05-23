@@ -282,11 +282,17 @@ export default function RejalarPage() {
       return;
     }
 
-    const hasMissingDailyTracker = trackers.some((tracker) => (
-      tracker.frequency === "daily" &&
-      !data.monthly_goals.find((goal) => goal.id === tracker.linked_goal_id)?.completed &&
-      !data.tasks.some((task) => task.source_tracker_id === tracker.id && isSameDate(task.date, selectedDate))
-    ));
+    const hasMissingDailyTracker = trackers.some((tracker) => {
+      const linkedGoal = tracker.linked_goal_id
+        ? data.monthly_goals.find((goal) => goal.id === tracker.linked_goal_id)
+        : null;
+
+      return (
+        tracker.frequency === "daily" &&
+        trackerPlannedAmount(tracker, linkedGoal) > 0 &&
+        !data.tasks.some((task) => task.source_tracker_id === tracker.id && isSameDate(task.date, selectedDate))
+      );
+    });
 
     if (!hasMissingDailyTracker) {
       return;
@@ -1129,7 +1135,7 @@ export default function RejalarPage() {
                       {linkedGoal ? (
                         <div className="mt-4 rounded-2xl border border-cyan-300/10 bg-cyan-500/[0.045] p-3">
                           <div className="mb-2 flex min-w-0 items-center justify-between gap-3 text-sm">
-                            <span className="break-words font-semibold text-cyan-100">{linkedGoal.current_value} / {linkedGoal.target_value} {linkedGoal.unit}</span>
+                            <span className="break-words font-semibold text-cyan-100">{t("goalLabel")}: {linkedGoal.current_value} / {linkedGoal.target_value} {linkedGoal.unit}</span>
                             <span className="shrink-0 text-xs text-cyan-200">{goalProgress(linkedGoal)}%</span>
                           </div>
                           <ProgressBar value={goalProgress(linkedGoal)} color={linkedGoal.completed ? "bg-emerald-400" : "bg-cyan-400"} />
