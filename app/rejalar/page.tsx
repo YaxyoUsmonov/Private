@@ -61,6 +61,32 @@ function goalProgress(goal: MonthlyGoalItem) {
   return Math.min(100, Math.round((goal.current_value / Math.max(goal.target_value, 1)) * 100));
 }
 
+function goalRemaining(goal: MonthlyGoalItem) {
+  return Math.max(0, goal.target_value - goal.current_value);
+}
+
+function trackerPlannedAmount(tracker: TrackerItem, linkedGoal?: MonthlyGoalItem | null) {
+  const targetPerPeriod = Math.max(1, Number(tracker.target_per_period) || 1);
+
+  if (!linkedGoal) {
+    return targetPerPeriod;
+  }
+
+  if (linkedGoal.completed) {
+    return 0;
+  }
+
+  return Math.min(targetPerPeriod, goalRemaining(linkedGoal));
+}
+
+function estimatedCompletionDays(remaining: number, targetPerPeriod: number) {
+  if (remaining <= 0 || targetPerPeriod <= 0) {
+    return 0;
+  }
+
+  return Math.ceil(remaining / targetPerPeriod);
+}
+
 function normalizeGoal(goal: MonthlyGoalItem): MonthlyGoalItem {
   const currentValue = Math.max(0, Number(goal.current_value) || 0);
   const targetValue = Math.max(1, Number(goal.target_value) || 1);
@@ -258,6 +284,7 @@ export default function RejalarPage() {
 
     const hasMissingDailyTracker = trackers.some((tracker) => (
       tracker.frequency === "daily" &&
+      !data.monthly_goals.find((goal) => goal.id === tracker.linked_goal_id)?.completed &&
       !data.tasks.some((task) => task.source_tracker_id === tracker.id && isSameDate(task.date, selectedDate))
     ));
 
@@ -287,7 +314,11 @@ export default function RejalarPage() {
         const linkedGoal = tracker.linked_goal_id
           ? current.monthly_goals.find((goal) => goal.id === tracker.linked_goal_id)
           : null;
-        const plannedAmount = Math.max(1, Number(tracker.target_per_period) || 1);
+        const plannedAmount = trackerPlannedAmount(tracker, linkedGoal);
+        if (plannedAmount <= 0) {
+          return;
+        }
+
         nextAutoTasks.push({
           id: createItemId(),
           title: `Bugun ${plannedAmount} ${tracker.unit} ${tracker.title}`,
@@ -319,7 +350,7 @@ export default function RejalarPage() {
           : tracker),
       };
     });
-  }, [data.tasks, hasLoaded, selectedDate, trackers, updateData]);
+  }, [data.monthly_goals, data.tasks, hasLoaded, selectedDate, trackers, updateData]);
 
   const editingTask = useMemo(
     () => editingTaskKey ? data.tasks.find((task) => taskKey(task) === editingTaskKey) : null,
@@ -928,8 +959,11 @@ export default function RejalarPage() {
             {trackers.length ? (
               <div className="space-y-3">
                 {visibleTrackers.map((tracker) => {
-                  const linkedGoal = monthlyGoals.find((goal) => goal.id === tracker.linked_goal_id);
+                  const linkedGoal = data.monthly_goals.find((goal) => goal.id === tracker.linked_goal_id);
                   const todayLog = (tracker.activity_log ?? []).find((entry) => isSameDate(entry.date, selectedDate));
+                  const remainingAmount = linkedGoal ? goalRemaining(linkedGoal) : 0;
+                  const todayAmount = trackerPlannedAmount(tracker, linkedGoal);
+                  const estimatedDays = linkedGoal ? estimatedCompletionDays(remainingAmount, Math.max(1, Number(tracker.target_per_period) || 1)) : 0;
                   return (
                     <div key={tracker.id} className="rounded-2xl border border-violet-300/12 bg-[linear-gradient(135deg,rgba(255,255,255,.045),rgba(124,58,237,.03))] p-4 transition duration-300 hover:-translate-y-0.5 hover:border-violet-300/20">
                       <div className="mb-3 flex items-start justify-between gap-3">
@@ -953,9 +987,25 @@ export default function RejalarPage() {
                             ? t("actualProgressDone", { amount: todayLog.actual_amount, unit: todayLog.unit })
                             : todayLog?.status === "missed"
                               ? t("noProgressToday")
-                              : t("plannedProgress", { amount: tracker.target_per_period, unit: tracker.unit })}
+                              : linkedGoal?.completed
+                                ? t("goalCompleted")
+                                : t("plannedProgress", { amount: todayAmount, unit: tracker.unit })}
                         </span>
                       </div>
+                      {linkedGoal ? (
+                        <div className="mt-4 rounded-2xl border border-cyan-300/10 bg-cyan-500/[0.045] p-3">
+                          <div className="mb-2 flex min-w-0 items-center justify-between gap-3 text-sm">
+                            <span className="break-words font-semibold text-cyan-100">{linkedGoal.current_value} / {linkedGoal.target_value} {linkedGoal.unit}</span>
+                            <span className="shrink-0 text-xs text-cyan-200">{goalProgress(linkedGoal)}%</span>
+                          </div>
+                          <ProgressBar value={goalProgress(linkedGoal)} color={linkedGoal.completed ? "bg-emerald-400" : "bg-cyan-400"} />
+                          <div className="mt-3 grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
+                            <span>{t("remaining")}: <span className="text-slate-200">{remainingAmount} {linkedGoal.unit}</span></span>
+                            <span>{linkedGoal.completed ? t("goalCompleted") : `${t("estimatedCompletion")}: ~${estimatedDays} ${t("daysLeft")}`}</span>
+                            <span className="sm:col-span-2">{t("todayPlan")}: <span className="text-violet-200">+{todayAmount} {tracker.unit}</span></span>
+                          </div>
+                        </div>
+                      ) : null}
                       <p className="mt-3 text-xs text-slate-500">{t("longestStreak")}: {tracker.longest_streak ?? tracker.streak}</p>
                     </div>
                   );
