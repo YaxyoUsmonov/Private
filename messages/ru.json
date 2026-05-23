@@ -263,7 +263,20 @@
     "descriptionField": "Описание",
     "goalDescriptionPlaceholder": "Напишите, почему эта цель важна",
     "markCompleted": "Отметить выполненной",
-    "markActive": "Сделать активной"
+    "markActive": "Сделать активной",
+    "goalType": "Тип цели",
+    "goalType_habit": "Привычка / Daily",
+    "goalType_target": "Результат / Target",
+    "goalType_deadline": "Deadline / Проект",
+    "deadlineDate": "Дата дедлайна",
+    "deadlineLabel": "Дедлайн",
+    "dailyTarget": "Ежедневная цель",
+    "linkToMonthlyGoal": "Связать с месячной целью",
+    "selectGoal": "Выберите цель",
+    "goalProgressIncrement": "Количество прогресса",
+    "goalUpdated": "Цель обновлена",
+    "lastActivity": "Последняя активность",
+    "linkedToGoal": "Связано с целью"
   },
   "mistakes": {
     "eyebrow": "???????? ????????",

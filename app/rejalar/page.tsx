@@ -18,6 +18,7 @@ import { createItemId, taskKey } from "../utils/items";
 const chartColors = ["#c084fc", "#22c55e", "#f59e0b", "#a78bfa", "#64748b", "#38bdf8"];
 const MIN_STATUS_NOTE_CHARS = 10;
 const goalUnitOptions = ["kun", "marta", "soat", "sahifa", "$", "kg", "km", "dona", "boshqa"] as const;
+const goalTypeOptions = ["habit", "target", "deadline"] as const;
 const recommendedGoalUnits: Record<string, string> = {
   "Ta’lim": "sahifa",
   Sport: "kun",
@@ -60,6 +61,39 @@ function goalProgress(goal: MonthlyGoalItem) {
   return Math.min(100, Math.round((goal.current_value / Math.max(goal.target_value, 1)) * 100));
 }
 
+function normalizeGoal(goal: MonthlyGoalItem): MonthlyGoalItem {
+  const currentValue = Math.max(0, Number(goal.current_value) || 0);
+  const targetValue = Math.max(1, Number(goal.target_value) || 1);
+  const progressPercent = Math.min(100, Math.round((currentValue / targetValue) * 100));
+
+  return {
+    ...goal,
+    current_value: currentValue,
+    target_value: targetValue,
+    progress_percent: progressPercent,
+    completed: currentValue >= targetValue,
+  };
+}
+
+function applyGoalDelta(goal: MonthlyGoalItem, amount: number, sourceTaskId: string, date: string) {
+  const currentValue = Math.min(goal.target_value, Math.max(0, goal.current_value + amount));
+  const nextLinkedTaskIds = amount > 0 && !goal.linked_task_ids?.includes(sourceTaskId)
+    ? [...(goal.linked_task_ids ?? []), sourceTaskId]
+    : goal.linked_task_ids ?? [];
+  const nextActivityLog = amount > 0
+    ? [...(goal.activity_log ?? []), { date, amount, source_task_id: sourceTaskId }]
+    : (goal.activity_log ?? []).filter((entry) => entry.source_task_id !== sourceTaskId);
+
+  return normalizeGoal({
+    ...goal,
+    current_value: currentValue,
+    linked_task_ids: nextLinkedTaskIds,
+    last_activity: amount > 0 ? date : goal.last_activity,
+    activity_log: nextActivityLog,
+    updated_at: new Date().toISOString(),
+  });
+}
+
 function monthParts(value: string) {
   const [year, month] = value.split("-").map(Number);
   return {
@@ -90,8 +124,12 @@ export default function RejalarPage() {
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
   const [editingGoalKey, setEditingGoalKey] = useState<string | null>(null);
   const [goalCategory, setGoalCategory] = useState("Shaxsiy");
+  const [goalType, setGoalType] = useState<(typeof goalTypeOptions)[number]>("target");
   const [goalUnit, setGoalUnit] = useState<string>("kun");
   const [goalCustomUnit, setGoalCustomUnit] = useState("");
+  const [taskGoalLinkEnabled, setTaskGoalLinkEnabled] = useState(false);
+  const [taskLinkedGoalId, setTaskLinkedGoalId] = useState("");
+  const [goalFeedback, setGoalFeedback] = useState<string | null>(null);
   const [statusTaskKey, setStatusTaskKey] = useState<string | null>(null);
   const [statusChoice, setStatusChoice] = useState<"completed" | "missed" | null>(null);
   const [statusNote, setStatusNote] = useState("");
@@ -150,22 +188,30 @@ export default function RejalarPage() {
 
   const openNewTask = useCallback(() => {
     setEditingTaskKey(null);
+    setTaskGoalLinkEnabled(false);
+    setTaskLinkedGoalId("");
     setModalOpen(true);
   }, []);
 
   const openEditTask = useCallback((key: string) => {
+    const task = data.tasks.find((item) => taskKey(item) === key);
     setEditingTaskKey(key);
+    setTaskGoalLinkEnabled(Boolean(task?.linked_goal_id));
+    setTaskLinkedGoalId(task?.linked_goal_id ?? "");
     setModalOpen(true);
-  }, []);
+  }, [data.tasks]);
 
   const closeModal = useCallback(() => {
     setModalOpen(false);
     setEditingTaskKey(null);
+    setTaskGoalLinkEnabled(false);
+    setTaskLinkedGoalId("");
   }, []);
 
   const openNewGoal = useCallback(() => {
     setEditingGoalKey(null);
     setGoalCategory("Shaxsiy");
+    setGoalType("target");
     setGoalUnit(recommendedGoalUnits.Shaxsiy);
     setGoalCustomUnit("");
     setGoalModalOpen(true);
@@ -175,6 +221,7 @@ export default function RejalarPage() {
     const goal = data.monthly_goals.find((item) => item.id === key);
     setEditingGoalKey(key);
     setGoalCategory(goal?.category ?? "Shaxsiy");
+    setGoalType(goal?.goal_type ?? "target");
     setGoalUnit(goal?.unit && goalUnitOptions.includes(goal.unit as (typeof goalUnitOptions)[number]) ? goal.unit : "boshqa");
     setGoalCustomUnit(goal?.unit && !goalUnitOptions.includes(goal.unit as (typeof goalUnitOptions)[number]) ? goal.unit : "");
     setGoalModalOpen(true);
@@ -184,6 +231,7 @@ export default function RejalarPage() {
     setGoalModalOpen(false);
     setEditingGoalKey(null);
     setGoalCategory("Shaxsiy");
+    setGoalType("target");
     setGoalUnit(recommendedGoalUnits.Shaxsiy);
     setGoalCustomUnit("");
   }, []);
@@ -192,6 +240,9 @@ export default function RejalarPage() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const category = String(form.get("category") || "Ta’lim");
+    const linkedGoalId = taskGoalLinkEnabled ? String(form.get("linked_goal_id") || "") : "";
+    const linkedGoal = data.monthly_goals.find((goal) => goal.id === linkedGoalId);
+    const goalProgressIncrement = taskGoalLinkEnabled ? Math.max(0, Number(form.get("goal_progress_increment") || 0)) : 0;
     const nextTask: TaskItem = {
       ...editingTask,
       id: editingTask?.id ?? createItemId(),
@@ -201,6 +252,10 @@ export default function RejalarPage() {
       priority: String(form.get("priority") || "Orta"),
       status: editingTask?.status ?? "Kutilmoqda",
       date: String(form.get("date") || selectedDate || todayISO()),
+      linked_goal_id: linkedGoalId || undefined,
+      linked_goal_title: linkedGoal?.title,
+      goal_progress_increment: goalProgressIncrement,
+      goal_progress_applied: editingTask?.linked_goal_id === linkedGoalId ? editingTask?.goal_progress_applied ?? false : false,
     };
     updateSection(
       "tasks",
@@ -210,7 +265,7 @@ export default function RejalarPage() {
     );
     closeModal();
     event.currentTarget.reset();
-  }, [closeModal, data.tasks, editingTask, editingTaskKey, selectedDate, updateSection]);
+  }, [closeModal, data.monthly_goals, data.tasks, editingTask, editingTaskKey, selectedDate, taskGoalLinkEnabled, updateSection]);
 
   const handleSaveGoal = useCallback((event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -220,18 +275,30 @@ export default function RejalarPage() {
     const currentValue = Math.max(0, Number(form.get("current_value") || 0));
     const selectedUnit = String(form.get("unit") || "marta");
     const customUnit = String(form.get("custom_unit") || "").trim();
+    const selectedGoalType = String(form.get("goal_type") || "target") as MonthlyGoalItem["goal_type"];
+    const dailyTarget = Math.max(0, Number(form.get("daily_target") || 0));
+    const deadlineDate = String(form.get("deadline_date") || "");
+    const resolvedTargetValue = selectedGoalType === "deadline" ? 100 : targetValue;
+    const resolvedCurrentValue = Math.min(resolvedTargetValue, currentValue);
     const nextGoal: MonthlyGoalItem = {
       id: editingGoal?.id ?? createItemId(),
       title: String(form.get("title") || "").trim(),
       description: String(form.get("description") || "").trim(),
       category: String(form.get("category") || "Shaxsiy"),
       type: "manual",
-      target_value: targetValue,
-      current_value: currentValue,
-      unit: selectedUnit === "boshqa" ? customUnit || "boshqa" : selectedUnit,
+      goal_type: selectedGoalType,
+      target_value: resolvedTargetValue,
+      current_value: resolvedCurrentValue,
+      unit: selectedGoalType === "deadline" ? "%" : selectedUnit === "boshqa" ? customUnit || "boshqa" : selectedUnit,
+      deadline_date: deadlineDate,
+      daily_target: selectedGoalType === "habit" ? dailyTarget : undefined,
+      progress_percent: Math.min(100, Math.round((resolvedCurrentValue / Math.max(resolvedTargetValue, 1)) * 100)),
       month: editingGoal?.month ?? selectedMonth.month,
       year: editingGoal?.year ?? selectedMonth.year,
-      completed: currentValue >= targetValue,
+      completed: resolvedCurrentValue >= resolvedTargetValue,
+      linked_task_ids: editingGoal?.linked_task_ids ?? [],
+      last_activity: editingGoal?.last_activity ?? "",
+      activity_log: editingGoal?.activity_log ?? [],
       created_at: editingGoal?.created_at ?? now,
       updated_at: now,
     };
@@ -319,21 +386,37 @@ export default function RejalarPage() {
     }
 
     const note = statusNote.trim();
+    const feedbackGoal = statusChoice === "completed" && statusTask?.linked_goal_id && !statusTask.goal_progress_applied
+      ? data.monthly_goals.find((goal) => goal.id === statusTask.linked_goal_id)
+      : null;
+    const feedbackAmount = Math.max(0, Number(statusTask?.goal_progress_increment) || 0);
 
     updateData((current) => {
       const nextStatus: TaskItem["status"] = statusChoice === "completed" ? "Bajarildi" : "Bajarilmadi";
+      let goalDelta = 0;
+      let goalId = "";
+      let goalSourceTaskId = "";
+      let goalActivityDate = selectedDate;
       let linkedTask = current.tasks.find((task) => taskKey(task) === statusTaskKey) ?? null;
       const nextTasks: TaskItem[] = current.tasks.map((task) => {
         if (taskKey(task) !== statusTaskKey) {
           return task;
         }
 
+        const increment = Math.max(0, Number(task.goal_progress_increment) || 0);
+        const shouldApplyGoal = statusChoice === "completed" && Boolean(task.linked_goal_id) && !task.goal_progress_applied && increment > 0;
+        const shouldRollbackGoal = statusChoice !== "completed" && Boolean(task.linked_goal_id) && Boolean(task.goal_progress_applied) && increment > 0;
+        goalDelta = shouldApplyGoal ? increment : shouldRollbackGoal ? -increment : 0;
+        goalId = task.linked_goal_id ?? "";
+        goalSourceTaskId = task.id ?? statusTaskKey;
+        goalActivityDate = task.date || selectedDate;
         const nextTask: TaskItem = {
           ...task,
           status: nextStatus,
           status_result: statusChoice,
           status_note: note,
           completed_note: statusChoice === "completed" ? note : undefined,
+          goal_progress_applied: shouldApplyGoal ? true : shouldRollbackGoal ? false : task.goal_progress_applied ?? false,
         };
         linkedTask = nextTask;
         return nextTask;
@@ -374,6 +457,9 @@ export default function RejalarPage() {
       return {
         ...current,
         tasks: nextTasks,
+        monthly_goals: goalDelta && goalId
+          ? current.monthly_goals.map((goal) => goal.id === goalId ? applyGoalDelta(goal, goalDelta, goalSourceTaskId, goalActivityDate) : goal)
+          : current.monthly_goals,
         journal: {
           ...current.journal,
           errors: statusChoice === "missed" && !existingMistake
@@ -397,8 +483,13 @@ export default function RejalarPage() {
         },
       };
     });
+    if (feedbackGoal && feedbackAmount > 0) {
+      const nextValue = Math.min(feedbackGoal.target_value, feedbackGoal.current_value + feedbackAmount);
+      setGoalFeedback(`${t("goalUpdated")} · +${feedbackAmount} ${feedbackGoal.unit} · ${nextValue} / ${feedbackGoal.target_value} ${feedbackGoal.unit}`);
+      window.setTimeout(() => setGoalFeedback(null), 3200);
+    }
     closeStatusModal();
-  }, [closeStatusModal, selectedDate, statusChoice, statusNote, statusNoteIsValid, statusTaskKey, t, updateData]);
+  }, [closeStatusModal, data.monthly_goals, selectedDate, statusChoice, statusNote, statusNoteIsValid, statusTask, statusTaskKey, t, updateData]);
   const handleDeleteTask = useCallback((key: string) => {
     setDeleteError(null);
 
@@ -464,6 +555,11 @@ export default function RejalarPage() {
       />
       <DataState loading={loading} error={error} />
       {deleteError ? <div className="mb-4 rounded-2xl border border-red-300/16 bg-red-500/10 px-4 py-3 text-sm text-red-200">{deleteError}</div> : null}
+      {goalFeedback ? (
+        <div className="mb-4 rounded-2xl border border-violet-300/16 bg-[linear-gradient(135deg,rgba(139,92,246,.16),rgba(34,211,238,.08))] px-4 py-3 text-sm font-semibold text-violet-100 shadow-[0_18px_44px_rgba(139,92,246,.14),inset_0_1px_0_rgba(255,255,255,.08)]">
+          🎯 {goalFeedback}
+        </div>
+      ) : null}
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard title={t("progress")} value={`${progress}%`} detail={`${completed} / ${tasks.length}`} icon={Target} tone="blue" />
@@ -531,6 +627,13 @@ export default function RejalarPage() {
                             <p className={`mt-1 flex flex-wrap items-center gap-2 text-sm transition duration-300 ease-out ${isDone ? "text-emerald-200/55" : isMissed ? "text-rose-200/60" : "text-slate-500"}`}>
                               <Clock3 size={14} /> {task.time}
                             </p>
+                            {task.linked_goal_id ? (
+                              <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-xl border border-violet-300/12 bg-violet-500/10 px-2.5 py-1.5 text-xs font-medium text-violet-200">
+                                <span className="shrink-0">🔗</span>
+                                <span className="truncate">{task.linked_goal_title ?? t("linkedToGoal")}</span>
+                                <span className="shrink-0 text-cyan-200">+{task.goal_progress_increment ?? 0} {monthlyGoals.find((goal) => goal.id === task.linked_goal_id)?.unit ?? ""}</span>
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                         <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
@@ -623,6 +726,7 @@ export default function RejalarPage() {
                           <div className="min-w-0">
                             <p className={`break-words font-semibold ${goal.completed ? "text-emerald-100" : "text-[var(--app-text)]"}`}>{goal.title}</p>
                             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                              <span className="rounded-lg border border-cyan-300/10 bg-cyan-500/10 px-2.5 py-1.5 text-cyan-200">{t(`goalType_${goal.goal_type ?? "target"}`)}</span>
                               <span className="rounded-lg border border-violet-300/10 bg-violet-500/10 px-2.5 py-1.5 text-violet-200">{goalCategoryLabel(goal.category)}</span>
                               {goal.completed ? <span className="rounded-lg border border-emerald-300/16 bg-emerald-500/10 px-2.5 py-1.5 text-emerald-200">{t("completedBadge")}</span> : null}
                             </div>
@@ -633,6 +737,12 @@ export default function RejalarPage() {
                           <span className="break-words">{goal.current_value} / {goal.target_value} {goal.unit}</span>
                           <span>{t("progressLabel")}</span>
                         </div>
+                        {goal.deadline_date || goal.last_activity ? (
+                          <div className="mb-3 flex flex-wrap gap-2 text-xs text-slate-400">
+                            {goal.deadline_date ? <span className="rounded-lg border border-rose-300/10 bg-rose-500/8 px-2.5 py-1.5 text-rose-200">{t("deadlineLabel")}: {goal.deadline_date}</span> : null}
+                            {goal.last_activity ? <span className="rounded-lg border border-emerald-300/10 bg-emerald-500/8 px-2.5 py-1.5 text-emerald-200">{t("lastActivity")}: {goal.last_activity}</span> : null}
+                          </div>
+                        ) : null}
                         <ProgressBar value={value} color={goal.completed ? "bg-emerald-400" : "bg-violet-400"} />
                         <div className="mt-4 flex flex-wrap items-center gap-2">
                           <button type="button" onClick={() => incrementGoal(goal.id ?? "")} className="inline-flex min-h-9 items-center rounded-xl border border-violet-300/14 bg-white/[0.035] px-3 text-xs font-semibold text-violet-100 transition hover:border-violet-300/24 hover:bg-violet-500/10">+1</button>
@@ -727,6 +837,39 @@ export default function RejalarPage() {
                 {priorityOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </select>
             </div>
+            <div className="sm:col-span-2 rounded-2xl border border-violet-300/12 bg-white/[0.025] p-4">
+              <label className="flex items-center gap-3 text-sm font-semibold text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={taskGoalLinkEnabled}
+                  onChange={(event) => {
+                    setTaskGoalLinkEnabled(event.target.checked);
+                    if (!event.target.checked) {
+                      setTaskLinkedGoalId("");
+                    } else if (!taskLinkedGoalId && monthlyGoals[0]?.id) {
+                      setTaskLinkedGoalId(monthlyGoals[0].id);
+                    }
+                  }}
+                  className="h-4 w-4 accent-violet-400"
+                />
+                {t("linkToMonthlyGoal")}
+              </label>
+              {taskGoalLinkEnabled ? (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>{t("monthlyGoals")}</label>
+                    <select name="linked_goal_id" className={fieldClass} value={taskLinkedGoalId} onChange={(event) => setTaskLinkedGoalId(event.target.value)}>
+                      <option value="">{t("selectGoal")}</option>
+                      {monthlyGoals.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>{t("goalProgressIncrement")}</label>
+                    <input name="goal_progress_increment" type="number" min="0" step="1" className={fieldClass} defaultValue={editingTask?.goal_progress_increment ?? 1} />
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <PrimaryButton icon={Plus} type="submit">{editingTask ? c("save") : t("save")}</PrimaryButton>
@@ -750,6 +893,24 @@ export default function RejalarPage() {
               <input name="title" className={fieldClass} placeholder={t("goalTitlePlaceholder")} defaultValue={editingGoal?.title ?? ""} required />
             </div>
             <div>
+              <label className={labelClass}>{t("goalType")}</label>
+              <select
+                name="goal_type"
+                className={fieldClass}
+                value={goalType}
+                onChange={(event) => {
+                  const nextType = event.target.value as (typeof goalTypeOptions)[number];
+                  setGoalType(nextType);
+                  if (nextType === "deadline") {
+                    setGoalUnit("%");
+                    setGoalCustomUnit("");
+                  }
+                }}
+              >
+                {goalTypeOptions.map((item) => <option key={item} value={item}>{t(`goalType_${item}`)}</option>)}
+              </select>
+            </div>
+            <div>
               <label className={labelClass}>{t("category")}</label>
               <select
                 name="category"
@@ -759,7 +920,7 @@ export default function RejalarPage() {
                   const nextCategory = event.target.value;
                   setGoalCategory(nextCategory);
                   const recommendedUnit = recommendedGoalUnits[nextCategory];
-                  if (recommendedUnit) {
+                  if (recommendedUnit && goalType !== "deadline") {
                     setGoalUnit(recommendedUnit);
                     setGoalCustomUnit("");
                   }
@@ -770,19 +931,35 @@ export default function RejalarPage() {
             </div>
             <div>
               <label className={labelClass}>{t("unit")}</label>
-              <select name="unit" className={fieldClass} value={goalUnit} onChange={(event) => setGoalUnit(event.target.value)}>
-                {goalUnitOptions.map((item) => <option key={item} value={item}>{item === "boshqa" ? c("other") : item}</option>)}
-              </select>
+              {goalType === "deadline" ? (
+                <input name="unit" className={fieldClass} value="%" readOnly />
+              ) : (
+                <select name="unit" className={fieldClass} value={goalUnit} onChange={(event) => setGoalUnit(event.target.value)}>
+                  {goalUnitOptions.map((item) => <option key={item} value={item}>{item === "boshqa" ? c("other") : item}</option>)}
+                </select>
+              )}
             </div>
-            {goalUnit === "boshqa" ? (
+            {goalUnit === "boshqa" && goalType !== "deadline" ? (
               <div className="sm:col-span-2">
                 <label className={labelClass}>{t("customUnit")}</label>
                 <input name="custom_unit" className={fieldClass} placeholder={t("customUnitPlaceholder")} value={goalCustomUnit} onChange={(event) => setGoalCustomUnit(event.target.value)} />
               </div>
             ) : null}
+            {goalType === "habit" ? (
+              <div>
+                <label className={labelClass}>{t("dailyTarget")}</label>
+                <input name="daily_target" type="number" min="0" step="1" className={fieldClass} defaultValue={editingGoal?.daily_target ?? 0} />
+              </div>
+            ) : null}
+            {goalType === "deadline" ? (
+              <div>
+                <label className={labelClass}>{t("deadlineDate")}</label>
+                <input name="deadline_date" type="date" className={fieldClass} defaultValue={editingGoal?.deadline_date ?? selectedDate} />
+              </div>
+            ) : null}
             <div>
               <label className={labelClass}>{t("targetValue")}</label>
-              <input name="target_value" type="number" min="1" step="1" className={fieldClass} defaultValue={editingGoal?.target_value ?? 1} required />
+              <input name="target_value" type="number" min="1" step="1" className={fieldClass} defaultValue={goalType === "deadline" ? 100 : editingGoal?.target_value ?? 1} readOnly={goalType === "deadline"} required />
             </div>
             <div>
               <label className={labelClass}>{t("currentValue")}</label>

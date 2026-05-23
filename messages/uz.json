@@ -207,7 +207,20 @@
     "descriptionField": "Tavsif",
     "goalDescriptionPlaceholder": "Maqsad nima uchun muhimligini yozing",
     "markCompleted": "Bajarildi qilish",
-    "markActive": "Faol qilish"
+    "markActive": "Faol qilish",
+    "goalType": "Maqsad turi",
+    "goalType_habit": "Odat / Daily",
+    "goalType_target": "Natija / Target",
+    "goalType_deadline": "Deadline / Loyiha",
+    "deadlineDate": "Deadline sanasi",
+    "deadlineLabel": "Deadline",
+    "dailyTarget": "Kunlik maqsad",
+    "linkToMonthlyGoal": "Oylik maqsadga ulash",
+    "selectGoal": "Maqsad tanlang",
+    "goalProgressIncrement": "Progress miqdori",
+    "goalUpdated": "Maqsad yangilandi",
+    "lastActivity": "Oxirgi harakat",
+    "linkedToGoal": "Goalga ulangan"
   },
   "mistakes": {
     "eyebrow": "Odatlar nazorati",

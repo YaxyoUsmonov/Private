@@ -207,7 +207,20 @@
     "descriptionField": "Description",
     "goalDescriptionPlaceholder": "Write why this goal matters",
     "markCompleted": "Mark completed",
-    "markActive": "Mark active"
+    "markActive": "Mark active",
+    "goalType": "Goal type",
+    "goalType_habit": "Habit / Daily",
+    "goalType_target": "Target / Result",
+    "goalType_deadline": "Deadline / Project",
+    "deadlineDate": "Deadline date",
+    "deadlineLabel": "Deadline",
+    "dailyTarget": "Daily target",
+    "linkToMonthlyGoal": "Link to monthly goal",
+    "selectGoal": "Select a goal",
+    "goalProgressIncrement": "Progress amount",
+    "goalUpdated": "Goal updated",
+    "lastActivity": "Last activity",
+    "linkedToGoal": "Linked to goal"
   },
   "mistakes": {
     "eyebrow": "Habit control",

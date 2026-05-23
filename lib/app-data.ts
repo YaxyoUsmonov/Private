@@ -21,6 +21,16 @@ export type TaskItem = {
   status_note?: string;
   completed_note?: string;
   status_result?: "pending" | "completed" | "missed";
+  linked_goal_id?: string;
+  goal_progress_increment?: number;
+  linked_goal_title?: string;
+  goal_progress_applied?: boolean;
+};
+
+export type MonthlyGoalActivity = {
+  date: string;
+  amount: number;
+  source_task_id?: string;
 };
 
 export type MonthlyGoalItem = {
@@ -29,12 +39,19 @@ export type MonthlyGoalItem = {
   description?: string;
   category: string;
   type: "manual" | "plans_category";
+  goal_type?: "habit" | "target" | "deadline";
   target_value: number;
   current_value: number;
   unit: string;
+  deadline_date?: string;
+  daily_target?: number;
+  progress_percent?: number;
   month: number;
   year: number;
   completed: boolean;
+  linked_task_ids?: string[];
+  last_activity?: string;
+  activity_log?: MonthlyGoalActivity[];
   created_at: string;
   updated_at: string;
 };
@@ -196,19 +213,30 @@ function sanitizeLegacyDemoData(data: AppData): AppData {
     tasks: data.tasks.map((task) => ({
       ...task,
       date: task.date ?? "",
+      goal_progress_increment: Math.max(0, Number(task.goal_progress_increment) || 0),
+      goal_progress_applied: Boolean(task.goal_progress_applied),
     })),
     monthly_goals: (Array.isArray(data.monthly_goals) ? data.monthly_goals : []).map((goal) => {
       const targetValue = Math.max(1, Number(goal.target_value) || 1);
       const currentValue = Math.max(0, Number(goal.current_value) || 0);
+      const progressPercent = Math.min(100, Math.round((currentValue / targetValue) * 100));
 
       return {
         ...goal,
         id: goal.id ?? "",
         description: goal.description ?? "",
         type: goal.type ?? "manual",
+        goal_type: goal.goal_type ?? "target",
         target_value: targetValue,
         current_value: currentValue,
+        unit: goal.unit ?? "marta",
+        deadline_date: goal.deadline_date ?? "",
+        daily_target: Math.max(0, Number(goal.daily_target) || 0),
+        progress_percent: progressPercent,
         completed: Boolean(goal.completed || currentValue >= targetValue),
+        linked_task_ids: Array.isArray(goal.linked_task_ids) ? goal.linked_task_ids : [],
+        last_activity: goal.last_activity ?? "",
+        activity_log: Array.isArray(goal.activity_log) ? goal.activity_log : [],
         created_at: goal.created_at ?? "",
         updated_at: goal.updated_at ?? "",
       };
