@@ -220,7 +220,11 @@
     "goalProgressIncrement": "Progress amount",
     "goalUpdated": "Goal updated",
     "lastActivity": "Last activity",
-    "linkedToGoal": "Linked to goal"
+    "linkedToGoal": "Linked to goal",
+    "plannedProgress": "planned today +{amount} {unit}",
+    "actualProgressDone": "+{amount} {unit} completed",
+    "noProgressToday": "no progress today",
+    "thisWeekSummary": "This week: {completed} completed · {missed} missed"
   },
   "mistakes": {
     "eyebrow": "Habit control",

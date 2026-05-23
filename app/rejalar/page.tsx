@@ -11,7 +11,7 @@ import { DataState } from "../components/data-state";
 import { Card, ConfirmDeleteButton, DateInput, EditButton, EmptyState, fieldClass, IconBadge, labelClass, Modal, PageHeader, PrimaryButton, ProgressBar, ShowMoreButton, StatCard } from "../components/ui";
 import { useAppData } from "../hooks/use-app-data";
 import { useAiAnalysis } from "../hooks/use-ai-analysis";
-import type { MonthlyGoalItem, TaskItem } from "../../lib/app-data";
+import type { MonthlyGoalItem, MonthlyGoalLastActivity, TaskItem } from "../../lib/app-data";
 import { isSameDate, shortDateLabel, todayISO } from "../utils/date";
 import { createItemId, taskKey } from "../utils/items";
 
@@ -75,23 +75,74 @@ function normalizeGoal(goal: MonthlyGoalItem): MonthlyGoalItem {
   };
 }
 
-function applyGoalDelta(goal: MonthlyGoalItem, amount: number, sourceTaskId: string, date: string) {
-  const currentValue = Math.min(goal.target_value, Math.max(0, goal.current_value + amount));
-  const nextLinkedTaskIds = amount > 0 && !goal.linked_task_ids?.includes(sourceTaskId)
-    ? [...(goal.linked_task_ids ?? []), sourceTaskId]
+function upsertGoalActivity(
+  goal: MonthlyGoalItem,
+  event: MonthlyGoalLastActivity & { source_task_id: string; source_task_title: string; note: string },
+  note: string,
+) {
+  const nextActivityLog = [
+    ...(goal.activity_log ?? []).filter((entry) => entry.source_task_id !== event.source_task_id),
+    {
+      date: event.date,
+      planned_amount: event.planned_amount,
+      actual_amount: event.actual_amount,
+      unit: event.unit,
+      status: event.status,
+      source: "plans",
+      source_task_id: event.source_task_id,
+      source_task_title: event.source_task_title,
+      note,
+      created_at: new Date().toISOString(),
+    },
+  ];
+
+  return nextActivityLog;
+}
+
+function applyGoalTaskEvent(
+  goal: MonthlyGoalItem,
+  event: MonthlyGoalLastActivity & { source_task_id: string; source_task_title: string; note: string },
+  valueDelta: number,
+) {
+  const currentValue = Math.min(goal.target_value, Math.max(0, goal.current_value + valueDelta));
+  const nextLinkedTaskIds = event.actual_amount > 0 && !goal.linked_task_ids?.includes(event.source_task_id)
+    ? [...(goal.linked_task_ids ?? []), event.source_task_id]
     : goal.linked_task_ids ?? [];
-  const nextActivityLog = amount > 0
-    ? [...(goal.activity_log ?? []), { date, amount, source_task_id: sourceTaskId }]
-    : (goal.activity_log ?? []).filter((entry) => entry.source_task_id !== sourceTaskId);
 
   return normalizeGoal({
     ...goal,
     current_value: currentValue,
     linked_task_ids: nextLinkedTaskIds,
-    last_activity: amount > 0 ? date : goal.last_activity,
-    activity_log: nextActivityLog,
+    last_activity: {
+      date: event.date,
+      status: event.status,
+      planned_amount: event.planned_amount,
+      actual_amount: event.actual_amount,
+      unit: event.unit,
+      source_task_id: event.source_task_id,
+      source_task_title: event.source_task_title,
+    },
+    activity_log: upsertGoalActivity(goal, event, event.note),
     updated_at: new Date().toISOString(),
   });
+}
+
+function weeklyGoalStats(goal: MonthlyGoalItem, selectedDate: string) {
+  const anchor = new Date(`${selectedDate}T00:00:00`);
+  const start = new Date(anchor);
+  start.setDate(anchor.getDate() - 6);
+  const logs = (goal.activity_log ?? []).filter((entry) => {
+    if (!entry.date) {
+      return false;
+    }
+    const date = new Date(`${entry.date.slice(0, 10)}T00:00:00`);
+    return date >= start && date <= anchor && entry.source === "plans";
+  });
+
+  return {
+    completed: logs.filter((entry) => entry.status === "completed").length,
+    missed: logs.filter((entry) => entry.status === "missed").length,
+  };
 }
 
 function monthParts(value: string) {
@@ -255,6 +306,8 @@ export default function RejalarPage() {
       linked_goal_id: linkedGoalId || undefined,
       linked_goal_title: linkedGoal?.title,
       goal_progress_increment: goalProgressIncrement,
+      planned_goal_increment: goalProgressIncrement,
+      actual_goal_increment: editingTask?.linked_goal_id === linkedGoalId ? editingTask?.actual_goal_increment ?? 0 : 0,
       goal_progress_applied: editingTask?.linked_goal_id === linkedGoalId ? editingTask?.goal_progress_applied ?? false : false,
     };
     updateSection(
@@ -389,33 +442,49 @@ export default function RejalarPage() {
     const feedbackGoal = statusChoice === "completed" && statusTask?.linked_goal_id && !statusTask.goal_progress_applied
       ? data.monthly_goals.find((goal) => goal.id === statusTask.linked_goal_id)
       : null;
-    const feedbackAmount = Math.max(0, Number(statusTask?.goal_progress_increment) || 0);
+    const feedbackAmount = Math.max(0, Number(statusTask?.planned_goal_increment ?? statusTask?.goal_progress_increment) || 0);
 
     updateData((current) => {
       const nextStatus: TaskItem["status"] = statusChoice === "completed" ? "Bajarildi" : "Bajarilmadi";
-      let goalDelta = 0;
+      let goalValueDelta = 0;
       let goalId = "";
-      let goalSourceTaskId = "";
-      let goalActivityDate = selectedDate;
+      let goalEvent: (MonthlyGoalLastActivity & { source_task_id: string; source_task_title: string; note: string }) | null = null;
       let linkedTask = current.tasks.find((task) => taskKey(task) === statusTaskKey) ?? null;
       const nextTasks: TaskItem[] = current.tasks.map((task) => {
         if (taskKey(task) !== statusTaskKey) {
           return task;
         }
 
-        const increment = Math.max(0, Number(task.goal_progress_increment) || 0);
-        const shouldApplyGoal = statusChoice === "completed" && Boolean(task.linked_goal_id) && !task.goal_progress_applied && increment > 0;
-        const shouldRollbackGoal = statusChoice !== "completed" && Boolean(task.linked_goal_id) && Boolean(task.goal_progress_applied) && increment > 0;
-        goalDelta = shouldApplyGoal ? increment : shouldRollbackGoal ? -increment : 0;
+        const plannedAmount = Math.max(0, Number(task.planned_goal_increment ?? task.goal_progress_increment) || 0);
+        const previousActualAmount = Math.max(0, Number(task.actual_goal_increment ?? (task.goal_progress_applied ? plannedAmount : 0)) || 0);
+        const shouldApplyGoal = statusChoice === "completed" && Boolean(task.linked_goal_id) && !task.goal_progress_applied && plannedAmount > 0;
+        const shouldRollbackGoal = statusChoice !== "completed" && Boolean(task.linked_goal_id) && Boolean(task.goal_progress_applied) && previousActualAmount > 0;
+        const actualAmount = shouldApplyGoal ? plannedAmount : 0;
+        goalValueDelta = shouldApplyGoal ? plannedAmount : shouldRollbackGoal ? -previousActualAmount : 0;
         goalId = task.linked_goal_id ?? "";
-        goalSourceTaskId = task.id ?? statusTaskKey;
-        goalActivityDate = task.date || selectedDate;
+        const sourceTaskIdForGoal = task.id ?? statusTaskKey;
+        const eventStatus = statusChoice === "completed" ? "completed" : "missed";
+        if (goalId && plannedAmount > 0) {
+          const goalUnit = current.monthly_goals.find((goal) => goal.id === goalId)?.unit ?? "";
+          goalEvent = {
+            date: task.date || selectedDate,
+            status: eventStatus,
+            planned_amount: plannedAmount,
+            actual_amount: actualAmount,
+            unit: goalUnit,
+            source_task_id: sourceTaskIdForGoal,
+            source_task_title: task.title,
+            note,
+          };
+        }
         const nextTask: TaskItem = {
           ...task,
           status: nextStatus,
           status_result: statusChoice,
           status_note: note,
           completed_note: statusChoice === "completed" ? note : undefined,
+          planned_goal_increment: plannedAmount,
+          actual_goal_increment: shouldApplyGoal ? plannedAmount : statusChoice === "completed" ? previousActualAmount : 0,
           goal_progress_applied: shouldApplyGoal ? true : shouldRollbackGoal ? false : task.goal_progress_applied ?? false,
         };
         linkedTask = nextTask;
@@ -457,8 +526,8 @@ export default function RejalarPage() {
       return {
         ...current,
         tasks: nextTasks,
-        monthly_goals: goalDelta && goalId
-          ? current.monthly_goals.map((goal) => goal.id === goalId ? applyGoalDelta(goal, goalDelta, goalSourceTaskId, goalActivityDate) : goal)
+        monthly_goals: goalEvent
+          ? current.monthly_goals.map((goal) => goal.id === goalId ? applyGoalTaskEvent(goal, goalEvent!, goalValueDelta) : goal)
           : current.monthly_goals,
         journal: {
           ...current.journal,
@@ -628,10 +697,22 @@ export default function RejalarPage() {
                               <Clock3 size={14} /> {task.time}
                             </p>
                             {task.linked_goal_id ? (
-                              <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-xl border border-violet-300/12 bg-violet-500/10 px-2.5 py-1.5 text-xs font-medium text-violet-200">
-                                <span className="shrink-0">🔗</span>
+                              <div className={`mt-2 inline-flex max-w-full items-center gap-2 rounded-xl border px-2.5 py-1.5 text-xs font-medium ${
+                                isMissed
+                                  ? "border-rose-300/12 bg-rose-500/10 text-rose-200"
+                                  : isDone
+                                    ? "border-emerald-300/12 bg-emerald-500/10 text-emerald-200"
+                                    : "border-violet-300/12 bg-violet-500/10 text-violet-200"
+                              }`}>
+                                <span className="shrink-0">{isMissed ? "⚠️" : isDone ? "🎯" : "🔗"}</span>
                                 <span className="truncate">{task.linked_goal_title ?? t("linkedToGoal")}</span>
-                                <span className="shrink-0 text-cyan-200">+{task.goal_progress_increment ?? 0} {monthlyGoals.find((goal) => goal.id === task.linked_goal_id)?.unit ?? ""}</span>
+                                <span className="shrink-0">
+                                  {isMissed
+                                    ? t("noProgressToday")
+                                    : isDone
+                                      ? t("actualProgressDone", { amount: task.actual_goal_increment ?? task.planned_goal_increment ?? task.goal_progress_increment ?? 0, unit: monthlyGoals.find((goal) => goal.id === task.linked_goal_id)?.unit ?? "" })
+                                      : t("plannedProgress", { amount: task.planned_goal_increment ?? task.goal_progress_increment ?? 0, unit: monthlyGoals.find((goal) => goal.id === task.linked_goal_id)?.unit ?? "" })}
+                                </span>
                               </div>
                             ) : null}
                           </div>
@@ -715,6 +796,8 @@ export default function RejalarPage() {
                 <div className="space-y-3">
                   {visibleGoals.map((goal) => {
                     const value = goalProgress(goal);
+                    const weekStats = weeklyGoalStats(goal, selectedDate);
+                    const lastActivity = typeof goal.last_activity === "string" ? null : goal.last_activity;
 
                     return (
                       <div key={goal.id} className={`rounded-2xl border p-4 transition duration-300 hover:-translate-y-0.5 ${
@@ -737,11 +820,22 @@ export default function RejalarPage() {
                           <span className="break-words">{goal.current_value} / {goal.target_value} {goal.unit}</span>
                           <span>{t("progressLabel")}</span>
                         </div>
-                        {goal.deadline_date || goal.last_activity ? (
+                        {goal.deadline_date || lastActivity ? (
                           <div className="mb-3 flex flex-wrap gap-2 text-xs text-slate-400">
                             {goal.deadline_date ? <span className="rounded-lg border border-rose-300/10 bg-rose-500/8 px-2.5 py-1.5 text-rose-200">{t("deadlineLabel")}: {goal.deadline_date}</span> : null}
-                            {goal.last_activity ? <span className="rounded-lg border border-emerald-300/10 bg-emerald-500/8 px-2.5 py-1.5 text-emerald-200">{t("lastActivity")}: {goal.last_activity}</span> : null}
+                            {lastActivity ? (
+                              <span className={`rounded-lg border px-2.5 py-1.5 ${
+                                lastActivity.status === "missed"
+                                  ? "border-rose-300/10 bg-rose-500/8 text-rose-200"
+                                  : "border-emerald-300/10 bg-emerald-500/8 text-emerald-200"
+                              }`}>
+                                {t("lastActivity")}: {lastActivity.status === "missed" ? t("noProgressToday") : `+${lastActivity.actual_amount} ${lastActivity.unit}`} · {lastActivity.date}
+                              </span>
+                            ) : null}
                           </div>
+                        ) : null}
+                        {weekStats.completed || weekStats.missed ? (
+                          <p className="mb-3 text-xs text-slate-400">{t("thisWeekSummary", { completed: weekStats.completed, missed: weekStats.missed })}</p>
                         ) : null}
                         <ProgressBar value={value} color={goal.completed ? "bg-emerald-400" : "bg-violet-400"} />
                         <div className="mt-4 flex flex-wrap items-center gap-2">

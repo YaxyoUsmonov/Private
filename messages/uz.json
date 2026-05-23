@@ -220,7 +220,11 @@
     "goalProgressIncrement": "Progress miqdori",
     "goalUpdated": "Maqsad yangilandi",
     "lastActivity": "Oxirgi harakat",
-    "linkedToGoal": "Goalga ulangan"
+    "linkedToGoal": "Goalga ulangan",
+    "plannedProgress": "bugun +{amount} {unit} rejalashtirilgan",
+    "actualProgressDone": "+{amount} {unit} bajarildi",
+    "noProgressToday": "bugun progress bo‘lmadi",
+    "thisWeekSummary": "Bu hafta: {completed} bajarildi · {missed} missed"
   },
   "mistakes": {
     "eyebrow": "Odatlar nazorati",

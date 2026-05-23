@@ -276,7 +276,11 @@
     "goalProgressIncrement": "Количество прогресса",
     "goalUpdated": "Цель обновлена",
     "lastActivity": "Последняя активность",
-    "linkedToGoal": "Связано с целью"
+    "linkedToGoal": "Связано с целью",
+    "plannedProgress": "на сегодня запланировано +{amount} {unit}",
+    "actualProgressDone": "+{amount} {unit} выполнено",
+    "noProgressToday": "сегодня прогресса не было",
+    "thisWeekSummary": "На этой неделе: {completed} выполнено · {missed} missed"
   },
   "mistakes": {
     "eyebrow": "???????? ????????",

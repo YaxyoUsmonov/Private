@@ -23,14 +23,34 @@ export type TaskItem = {
   status_result?: "pending" | "completed" | "missed";
   linked_goal_id?: string;
   goal_progress_increment?: number;
+  planned_goal_increment?: number;
+  actual_goal_increment?: number;
   linked_goal_title?: string;
   goal_progress_applied?: boolean;
 };
 
 export type MonthlyGoalActivity = {
   date: string;
-  amount: number;
+  planned_amount?: number;
+  actual_amount?: number;
+  amount?: number;
+  unit?: string;
+  status?: "pending" | "completed" | "missed";
+  source?: "plans" | "manual" | string;
   source_task_id?: string;
+  source_task_title?: string;
+  note?: string;
+  created_at?: string;
+};
+
+export type MonthlyGoalLastActivity = {
+  date: string;
+  status: "pending" | "completed" | "missed";
+  planned_amount: number;
+  actual_amount: number;
+  unit: string;
+  source_task_id?: string;
+  source_task_title?: string;
 };
 
 export type MonthlyGoalItem = {
@@ -50,7 +70,7 @@ export type MonthlyGoalItem = {
   year: number;
   completed: boolean;
   linked_task_ids?: string[];
-  last_activity?: string;
+  last_activity?: MonthlyGoalLastActivity | string;
   activity_log?: MonthlyGoalActivity[];
   created_at: string;
   updated_at: string;
@@ -214,6 +234,11 @@ function sanitizeLegacyDemoData(data: AppData): AppData {
       ...task,
       date: task.date ?? "",
       goal_progress_increment: Math.max(0, Number(task.goal_progress_increment) || 0),
+      planned_goal_increment: Math.max(0, Number(task.planned_goal_increment ?? task.goal_progress_increment) || 0),
+      actual_goal_increment: Math.max(
+        0,
+        Number(task.actual_goal_increment ?? (task.status === "Bajarildi" && task.goal_progress_applied ? task.goal_progress_increment : 0)) || 0,
+      ),
       goal_progress_applied: Boolean(task.goal_progress_applied),
     })),
     monthly_goals: (Array.isArray(data.monthly_goals) ? data.monthly_goals : []).map((goal) => {
