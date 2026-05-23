@@ -798,9 +798,6 @@ export default function RejalarPage() {
   const categoryLabel = (value: string) => categoryOptions.find((item) => item.value === normalizeTaskCategory(value))?.label ?? normalizeTaskCategory(value);
   const goalCategoryLabel = (value: string) => goalCategoryOptions.find((item) => item.value === value)?.label ?? value;
   const priorityLabel = (value: string) => priorityOptions.find((item) => item.value === value)?.label ?? value;
-  const currentStreak = trackers.length ? Math.max(...trackers.map((tracker) => tracker.streak)) : data.streaks.current;
-  const missed = tasks.filter((task) => task.status === "Bajarilmadi").length;
-  const activeGoals = monthlyGoals.filter((goal) => !goal.completed).length;
 
   return (
     <>
@@ -823,25 +820,16 @@ export default function RejalarPage() {
         </div>
       ) : null}
 
-      <div className="mb-6 rounded-[28px] border border-violet-300/14 bg-[linear-gradient(135deg,rgba(124,58,237,.16),rgba(15,23,42,.66),rgba(34,211,238,.05))] p-5 shadow-[0_22px_70px_rgba(76,29,149,.18),inset_0_1px_0_rgba(255,255,255,.09)] sm:p-6">
-        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-violet-200">{shortDateLabel(selectedDate)}</p>
-            <h2 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">{t("todayGrowth")}</h2>
-          </div>
-          <p className="max-w-xl text-sm leading-6 text-slate-400">{t("todayGrowthDescription")}</p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <StatCard title={t("currentStreak")} value={`${currentStreak}`} detail={t("streakDays")} icon={Trophy} tone="amber" />
-          <StatCard title={t("completedToday")} value={`${completed}`} detail={t("completed")} icon={Check} tone="green" />
-          <StatCard title={t("missedToday")} value={`${missed}`} detail={t("statusMissed")} icon={X} tone="red" />
-          <StatCard title={t("activeGoals")} value={`${activeGoals}`} detail={t("monthlyGoals")} icon={Target} tone="violet" />
-          <StatCard title={t("todayProgress")} value={`${progress}%`} detail={`${completed} / ${tasks.length}`} icon={CalendarCheck} tone="blue" />
-        </div>
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard title={t("progress")} value={`${progress}%`} detail={`${completed} / ${tasks.length}`} icon={Target} tone="blue" />
+        <StatCard title={t("aiScore")} value={plansAi.analysis?.score === null || plansAi.analysis?.score === undefined ? "-" : `${plansAi.analysis.score}/100`} detail={plansAi.analysis ? shortDateLabel(selectedDate) : t("aiUnavailableDetail")} icon={CalendarCheck} tone="violet" variant="ai" />
+        <StatCard title={t("completed")} value={`${completed}`} detail={t("completed")} icon={CalendarCheck} tone="green" />
+        <StatCard title={t("pending")} value={`${pending}`} detail={t("pending")} icon={Clock3} tone="amber" />
       </div>
 
       <div className="grid min-w-0 gap-6 xl:grid-cols-[2fr_1fr]">
         <div className="min-w-0 space-y-6">
+          <div className="hidden">
           <Card alive variant="plan">
             <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -967,7 +955,7 @@ export default function RejalarPage() {
             {tasks.length > 4 ? <ShowMoreButton expanded={expandedLists.tasks} onClick={() => setExpandedLists((current) => ({ ...current, tasks: !current.tasks }))} /> : null}
           </Card>
 
-          <div className="hidden">
+          </div>
           <Card alive variant="plan">
             <h2 className="mb-5 text-xl font-bold">{t("tasks")}</h2>
             <LayoutGroup>
@@ -1065,7 +1053,6 @@ export default function RejalarPage() {
             </LayoutGroup>
             {tasks.length > 4 ? <ShowMoreButton expanded={expandedLists.tasks} onClick={() => setExpandedLists((current) => ({ ...current, tasks: !current.tasks }))} /> : null}
           </Card>
-          </div>
 
           <Card variant="plan">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -1098,7 +1085,6 @@ export default function RejalarPage() {
         </div>
 
         <div className="min-w-0 space-y-6">
-          <div className="hidden">
           <Card variant="plan">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-bold">{t("trackers")}</h2>
@@ -1167,7 +1153,6 @@ export default function RejalarPage() {
               </EmptyState>
             )}
           </Card>
-          </div>
 
           <Card alive variant="ai">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
