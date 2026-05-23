@@ -92,6 +92,7 @@ export type TrackerActivity = {
 export type TrackerItem = {
   id?: string;
   title: string;
+  description?: string;
   category: string;
   frequency: "daily" | "weekly" | "custom";
   target_per_period: number;
@@ -314,6 +315,7 @@ function sanitizeLegacyDemoData(data: AppData): AppData {
       ...tracker,
       id: tracker.id ?? "",
       title: tracker.title ?? "",
+      description: tracker.description ?? "",
       category: tracker.category ?? "Shaxsiy",
       frequency: tracker.frequency ?? "daily",
       target_per_period: Math.max(1, Number(tracker.target_per_period) || 1),

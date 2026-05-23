@@ -274,6 +274,8 @@
     "goalTypeDescription_deadline": "Завершить к определенной дате",
     "trackers": "Трекеры",
     "tracker": "Трекер",
+    "editTracker": "Редактировать привычку",
+    "deleteTrackerConfirm": "Удалить эту привычку?",
     "streak": "Серия",
     "longestStreak": "Самая длинная серия",
     "noTrackers": "Трекеров пока нет",

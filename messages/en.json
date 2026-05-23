@@ -218,6 +218,8 @@
     "goalTypeDescription_deadline": "Finish by a specific date",
     "trackers": "Trackers",
     "tracker": "Tracker",
+    "editTracker": "Edit habit",
+    "deleteTrackerConfirm": "Do you want to delete this habit?",
     "streak": "Streak",
     "longestStreak": "Longest streak",
     "noTrackers": "No trackers yet",

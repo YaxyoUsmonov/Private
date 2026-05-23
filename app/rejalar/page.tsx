@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
-import { Book, Briefcase, CalendarCheck, Check, Clock3, Dumbbell, Plus, Target, Trophy, X } from "lucide-react";
+import { Book, Briefcase, CalendarCheck, Check, Clock3, Dumbbell, Plus, Target, Trash2, Trophy, X } from "lucide-react";
 import { Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { AiAnalysisContent } from "../components/ai-analysis-content";
 import { ChartFrame } from "../components/chart-frame";
@@ -225,6 +225,7 @@ export default function RejalarPage() {
   const [goalModalOpen, setGoalModalOpen] = useState(false);
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
   const [editingGoalKey, setEditingGoalKey] = useState<string | null>(null);
+  const [editingTrackerKey, setEditingTrackerKey] = useState<string | null>(null);
   const [goalCategory, setGoalCategory] = useState("Shaxsiy");
   const [goalType, setGoalType] = useState<(typeof goalTypeOptions)[number] | null>("target");
   const [goalUnit, setGoalUnit] = useState<string>("kun");
@@ -370,6 +371,10 @@ export default function RejalarPage() {
     () => editingGoalKey ? data.monthly_goals.find((goal) => goal.id === editingGoalKey) : null,
     [data.monthly_goals, editingGoalKey],
   );
+  const editingTracker = useMemo(
+    () => editingTrackerKey ? data.trackers.find((tracker) => tracker.id === editingTrackerKey) : null,
+    [data.trackers, editingTrackerKey],
+  );
 
   const openNewTask = useCallback(() => {
     setEditingTaskKey(null);
@@ -395,6 +400,7 @@ export default function RejalarPage() {
 
   const openNewGoal = useCallback(() => {
     setEditingGoalKey(null);
+    setEditingTrackerKey(null);
     setGoalCategory("Shaxsiy");
     setGoalType(null);
     setGoalUnit(recommendedGoalUnits.Shaxsiy);
@@ -406,6 +412,7 @@ export default function RejalarPage() {
   const openEditGoal = useCallback((key: string) => {
     const goal = data.monthly_goals.find((item) => item.id === key);
     setEditingGoalKey(key);
+    setEditingTrackerKey(null);
     setGoalCategory(goal?.category ?? "Shaxsiy");
     setGoalType(goal?.goal_type ?? "target");
     setGoalUnit(goal?.unit && goalUnitOptions.includes(goal.unit as (typeof goalUnitOptions)[number]) ? goal.unit : "boshqa");
@@ -414,9 +421,22 @@ export default function RejalarPage() {
     setGoalModalOpen(true);
   }, [data.monthly_goals]);
 
+  const openEditTracker = useCallback((key: string) => {
+    const tracker = data.trackers.find((item) => item.id === key);
+    setEditingGoalKey(null);
+    setEditingTrackerKey(key);
+    setGoalCategory(tracker?.category ?? "Shaxsiy");
+    setGoalType("habit");
+    setGoalUnit(tracker?.unit && goalUnitOptions.includes(tracker.unit as (typeof goalUnitOptions)[number]) ? tracker.unit : "boshqa");
+    setGoalCustomUnit(tracker?.unit && !goalUnitOptions.includes(tracker.unit as (typeof goalUnitOptions)[number]) ? tracker.unit : "");
+    setTrackerFrequency(tracker?.frequency ?? "daily");
+    setGoalModalOpen(true);
+  }, [data.trackers]);
+
   const closeGoalModal = useCallback(() => {
     setGoalModalOpen(false);
     setEditingGoalKey(null);
+    setEditingTrackerKey(null);
     setGoalCategory("Shaxsiy");
     setGoalType("target");
     setGoalUnit(recommendedGoalUnits.Shaxsiy);
@@ -481,23 +501,29 @@ export default function RejalarPage() {
     if (selectedGoalType === "habit" && !editingGoal) {
       const targetPerPeriod = Math.max(1, dailyTarget || targetValue);
       const nextTracker: TrackerItem = {
-        id: createItemId(),
+        id: editingTracker?.id ?? createItemId(),
         title,
+        description: String(form.get("description") || "").trim(),
         category,
         frequency: String(form.get("frequency") || "daily") as TrackerItem["frequency"],
         target_per_period: targetPerPeriod,
         unit,
         reminder_time: String(form.get("reminder_time") || ""),
-        notes_enabled: true,
-        linked_goal_id: undefined,
-        streak: 0,
-        longest_streak: 0,
-        activity_log: [],
-        created_at: now,
+        notes_enabled: editingTracker?.notes_enabled ?? true,
+        linked_goal_id: editingTracker?.linked_goal_id,
+        streak: editingTracker?.streak ?? 0,
+        longest_streak: editingTracker?.longest_streak ?? 0,
+        activity_log: editingTracker?.activity_log ?? [],
+        created_at: editingTracker?.created_at ?? now,
         updated_at: now,
       };
 
-      updateSection("trackers", [nextTracker, ...data.trackers]);
+      updateSection(
+        "trackers",
+        editingTrackerKey
+          ? data.trackers.map((tracker) => tracker.id === editingTrackerKey ? nextTracker : tracker)
+          : [nextTracker, ...data.trackers],
+      );
       closeGoalModal();
       event.currentTarget.reset();
       return;
@@ -536,7 +562,7 @@ export default function RejalarPage() {
     );
     closeGoalModal();
     event.currentTarget.reset();
-  }, [closeGoalModal, data.monthly_goals, data.trackers, editingGoal, editingGoalKey, selectedMonth.month, selectedMonth.year, updateSection]);
+  }, [closeGoalModal, data.monthly_goals, data.trackers, editingGoal, editingGoalKey, editingTracker, editingTrackerKey, selectedMonth.month, selectedMonth.year, updateSection]);
 
   const updateGoal = useCallback((key: string, updater: (goal: MonthlyGoalItem) => MonthlyGoalItem) => {
     updateSection(
@@ -572,6 +598,17 @@ export default function RejalarPage() {
   const handleDeleteGoal = useCallback((key: string) => {
     updateSection("monthly_goals", data.monthly_goals.filter((goal) => goal.id !== key));
   }, [data.monthly_goals, updateSection]);
+  const handleDeleteTracker = useCallback((key: string) => {
+    if (!window.confirm(t("deleteTrackerConfirm"))) {
+      return;
+    }
+
+    updateData((current) => ({
+      ...current,
+      trackers: current.trackers.filter((tracker) => tracker.id !== key),
+      tasks: current.tasks.filter((task) => task.source_tracker_id !== key || task.status !== "Kutilmoqda"),
+    }));
+  }, [t, updateData]);
 
   const openStatusModal = useCallback((key: string) => {
     const task = data.tasks.find((item) => taskKey(item) === key);
@@ -1146,7 +1183,22 @@ export default function RejalarPage() {
                           </div>
                         </div>
                       ) : null}
-                      <p className="mt-3 text-xs text-slate-500">{t("longestStreak")}: {tracker.longest_streak ?? tracker.streak}</p>
+                      {tracker.description ? <p className="mt-3 text-xs text-slate-400">{tracker.description}</p> : null}
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs text-slate-500">{t("longestStreak")}: {tracker.longest_streak ?? tracker.streak}</p>
+                        <div className="flex items-center gap-2">
+                          <EditButton onClick={() => openEditTracker(tracker.id ?? "")} />
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTracker(tracker.id ?? "")}
+                            className="inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-2xl border border-red-300/12 bg-red-500/8 text-red-300 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] transition duration-400 hover:border-red-300/24 hover:bg-red-500/14 hover:text-red-200 active:scale-95 active:opacity-90"
+                            aria-label={c("delete")}
+                            title={c("delete")}
+                          >
+                            <Trash2 size={18} strokeWidth={2.3} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -1369,7 +1421,7 @@ export default function RejalarPage() {
       <Modal
         open={goalModalOpen}
         onClose={closeGoalModal}
-        title={editingGoal ? t("editGoal") : t("addMonthlyGoal")}
+        title={editingTracker ? t("editTracker") : editingGoal ? t("editGoal") : t("addMonthlyGoal")}
         description={t("monthlyGoalModalDescription")}
       >
         <form key={editingGoalKey ?? "new-goal"} onSubmit={handleSaveGoal} className="space-y-4">
@@ -1400,7 +1452,7 @@ export default function RejalarPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className={labelClass}>{t("goalTitle")}</label>
-              <input name="title" className={fieldClass} placeholder={t("goalTitlePlaceholder")} defaultValue={editingGoal?.title ?? ""} required />
+              <input name="title" className={fieldClass} placeholder={t("goalTitlePlaceholder")} defaultValue={editingGoal?.title ?? editingTracker?.title ?? ""} required />
             </div>
             <div>
               <label className={labelClass}>{t("goalType")}</label>
@@ -1408,6 +1460,7 @@ export default function RejalarPage() {
                 name="goal_type"
                 className={fieldClass}
                 value={goalType ?? "target"}
+                disabled={Boolean(editingTracker)}
                 onChange={(event) => {
                   const nextType = event.target.value as (typeof goalTypeOptions)[number];
                   setGoalType(nextType);
@@ -1458,7 +1511,7 @@ export default function RejalarPage() {
             {goalType === "habit" ? (
               <div>
                 <label className={labelClass}>{t("dailyTarget")}</label>
-                <input name="daily_target" type="number" min="1" step="1" className={fieldClass} defaultValue={editingGoal?.daily_target ?? 1} />
+                <input name="daily_target" type="number" min="1" step="1" className={fieldClass} defaultValue={editingGoal?.daily_target ?? editingTracker?.target_per_period ?? 1} />
               </div>
             ) : null}
             {goalType === "habit" && !editingGoal ? (
@@ -1473,7 +1526,7 @@ export default function RejalarPage() {
                 </div>
                 <div>
                   <label className={labelClass}>{t("reminderTime")}</label>
-                  <input name="reminder_time" type="time" className={fieldClass} defaultValue="09:00" />
+                  <input name="reminder_time" type="time" className={fieldClass} defaultValue={editingTracker?.reminder_time || "09:00"} />
                 </div>
               </>
             ) : null}
@@ -1483,17 +1536,21 @@ export default function RejalarPage() {
                 <input name="deadline_date" type="date" className={fieldClass} defaultValue={editingGoal?.deadline_date ?? selectedDate} />
               </div>
             ) : null}
-            <div>
-              <label className={labelClass}>{t("targetValue")}</label>
-              <input name="target_value" type="number" min="1" step="1" className={fieldClass} defaultValue={goalType === "deadline" ? 100 : editingGoal?.target_value ?? 1} readOnly={goalType === "deadline"} required />
-            </div>
-            <div>
-              <label className={labelClass}>{t("currentValue")}</label>
-              <input name="current_value" type="number" min="0" step="1" className={fieldClass} defaultValue={editingGoal?.current_value ?? 0} />
-            </div>
+            {goalType !== "habit" ? (
+              <>
+                <div>
+                  <label className={labelClass}>{t("targetValue")}</label>
+                  <input name="target_value" type="number" min="1" step="1" className={fieldClass} defaultValue={goalType === "deadline" ? 100 : editingGoal?.target_value ?? 1} readOnly={goalType === "deadline"} required />
+                </div>
+                <div>
+                  <label className={labelClass}>{t("currentValue")}</label>
+                  <input name="current_value" type="number" min="0" step="1" className={fieldClass} defaultValue={editingGoal?.current_value ?? 0} />
+                </div>
+              </>
+            ) : null}
             <div className="sm:col-span-2">
               <label className={labelClass}>{t("descriptionField")}</label>
-              <textarea name="description" className={`${fieldClass} min-h-24 resize-none`} placeholder={t("goalDescriptionPlaceholder")} defaultValue={editingGoal?.description ?? ""} />
+              <textarea name="description" className={`${fieldClass} min-h-24 resize-none`} placeholder={t("goalDescriptionPlaceholder")} defaultValue={editingGoal?.description ?? editingTracker?.description ?? ""} />
             </div>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

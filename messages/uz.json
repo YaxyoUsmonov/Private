@@ -218,6 +218,8 @@
     "goalTypeDescription_deadline": "Ma’lum sanagacha tugatish",
     "trackers": "Trackerlar",
     "tracker": "Tracker",
+    "editTracker": "Odatni tahrirlash",
+    "deleteTrackerConfirm": "Bu odatni o‘chirmoqchimisiz?",
     "streak": "Streak",
     "longestStreak": "Eng uzun streak",
     "noTrackers": "Hali tracker qo‘shilmagan",
