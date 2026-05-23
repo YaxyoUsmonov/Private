@@ -574,6 +574,13 @@ export default function RejalarPage() {
     setStatusNote(task?.status_note ?? task?.completed_note ?? "");
     setStatusWarning(null);
   }, [data.tasks]);
+  const openStatusModalWithChoice = useCallback((key: string, choice: "completed" | "missed") => {
+    const task = data.tasks.find((item) => taskKey(item) === key);
+    setStatusTaskKey(key);
+    setStatusChoice(choice);
+    setStatusNote(task?.status_note ?? task?.completed_note ?? "");
+    setStatusWarning(null);
+  }, [data.tasks]);
   const closeStatusModal = useCallback(() => {
     setStatusTaskKey(null);
     setStatusChoice(null);
@@ -791,6 +798,9 @@ export default function RejalarPage() {
   const categoryLabel = (value: string) => categoryOptions.find((item) => item.value === normalizeTaskCategory(value))?.label ?? normalizeTaskCategory(value);
   const goalCategoryLabel = (value: string) => goalCategoryOptions.find((item) => item.value === value)?.label ?? value;
   const priorityLabel = (value: string) => priorityOptions.find((item) => item.value === value)?.label ?? value;
+  const currentStreak = trackers.length ? Math.max(...trackers.map((tracker) => tracker.streak)) : data.streaks.current;
+  const missed = tasks.filter((task) => task.status === "Bajarilmadi").length;
+  const activeGoals = monthlyGoals.filter((goal) => !goal.completed).length;
 
   return (
     <>
@@ -813,15 +823,151 @@ export default function RejalarPage() {
         </div>
       ) : null}
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title={t("progress")} value={`${progress}%`} detail={`${completed} / ${tasks.length}`} icon={Target} tone="blue" />
-        <StatCard title={t("aiScore")} value={plansAi.analysis?.score === null || plansAi.analysis?.score === undefined ? "-" : `${plansAi.analysis.score}/100`} detail={plansAi.analysis ? shortDateLabel(selectedDate) : t("aiUnavailableDetail")} icon={CalendarCheck} tone="violet" variant="ai" />
-        <StatCard title={t("completed")} value={`${completed}`} detail={t("completed")} icon={CalendarCheck} tone="green" />
-        <StatCard title={t("pending")} value={`${pending}`} detail={t("pending")} icon={Clock3} tone="amber" />
+      <div className="mb-6 rounded-[28px] border border-violet-300/14 bg-[linear-gradient(135deg,rgba(124,58,237,.16),rgba(15,23,42,.66),rgba(34,211,238,.05))] p-5 shadow-[0_22px_70px_rgba(76,29,149,.18),inset_0_1px_0_rgba(255,255,255,.09)] sm:p-6">
+        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-violet-200">{shortDateLabel(selectedDate)}</p>
+            <h2 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">{t("todayGrowth")}</h2>
+          </div>
+          <p className="max-w-xl text-sm leading-6 text-slate-400">{t("todayGrowthDescription")}</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <StatCard title={t("currentStreak")} value={`${currentStreak}`} detail={t("streakDays")} icon={Trophy} tone="amber" />
+          <StatCard title={t("completedToday")} value={`${completed}`} detail={t("completed")} icon={Check} tone="green" />
+          <StatCard title={t("missedToday")} value={`${missed}`} detail={t("statusMissed")} icon={X} tone="red" />
+          <StatCard title={t("activeGoals")} value={`${activeGoals}`} detail={t("monthlyGoals")} icon={Target} tone="violet" />
+          <StatCard title={t("todayProgress")} value={`${progress}%`} detail={`${completed} / ${tasks.length}`} icon={CalendarCheck} tone="blue" />
+        </div>
       </div>
 
       <div className="grid min-w-0 gap-6 xl:grid-cols-[2fr_1fr]">
         <div className="min-w-0 space-y-6">
+          <Card alive variant="plan">
+            <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300/80">{t("dailySystems")}</p>
+                <h2 className="mt-1 text-xl font-bold">{t("todayGrowth")}</h2>
+              </div>
+              <span className="rounded-2xl border border-violet-300/15 bg-violet-500/10 px-3.5 py-2 text-xs font-medium text-violet-200">{t("behavioralSystems")}</span>
+            </div>
+            <LayoutGroup>
+              <div className="space-y-4">
+                <AnimatePresence initial={false} mode="popLayout">
+                  {visibleTasks.map((task) => {
+                    const meta = taskMeta[normalizeTaskCategory(task.category) as keyof typeof taskMeta] ?? taskMeta.Shaxsiy;
+                    const Icon = meta.icon;
+                    const isDone = task.status === "Bajarildi";
+                    const isMissed = task.status === "Bajarilmadi";
+                    const tracker = trackers.find((item) => item.id === task.source_tracker_id);
+                    const linkedGoal = data.monthly_goals.find((goal) => goal.id === task.linked_goal_id);
+                    const remainingAmount = linkedGoal ? goalRemaining(linkedGoal) : 0;
+                    const estimatedDays = linkedGoal ? estimatedCompletionDays(remainingAmount, Math.max(1, Number(tracker?.target_per_period ?? task.planned_goal_increment ?? task.goal_progress_increment) || 1)) : 0;
+                    const plannedAmount = Math.max(0, Number(task.planned_goal_increment ?? task.goal_progress_increment ?? tracker?.target_per_period) || 0);
+                    const displayTitle = tracker?.title ?? task.title;
+
+                    return (
+                      <motion.div
+                        layout="position"
+                        initial={false}
+                        animate={{ opacity: isDone ? 0.92 : 1, scale: 1, y: 0 }}
+                        transition={{
+                          layout: { duration: 0.22, ease: "easeOut" },
+                          opacity: { duration: 0.2, ease: "easeOut" },
+                          scale: { duration: 0.2, ease: "easeOut" },
+                          y: { duration: 0.2, ease: "easeOut" },
+                        }}
+                        key={taskKey(task)}
+                        className={`w-full min-w-0 transform-gpu rounded-[24px] border p-4 text-left shadow-[0_18px_42px_rgba(0,0,0,.18),inset_0_1px_0_rgba(255,255,255,.07)] transition duration-300 ease-out hover:-translate-y-0.5 sm:p-5 ${
+                          isDone
+                            ? "border-emerald-300/34 bg-[linear-gradient(135deg,rgba(16,185,129,.24),rgba(34,211,238,.09),rgba(124,58,237,.035))] hover:border-emerald-300/42"
+                            : isMissed
+                              ? "border-rose-300/30 bg-[linear-gradient(135deg,rgba(239,68,68,.18),rgba(244,63,94,.12),rgba(124,58,237,.025))] hover:border-rose-300/42"
+                              : "border-violet-300/12 bg-[linear-gradient(135deg,rgba(255,255,255,.055),rgba(124,58,237,.028))] hover:border-violet-300/20 hover:bg-violet-500/[0.052]"
+                        }`}
+                      >
+                        <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="flex min-w-0 gap-4">
+                            <IconBadge icon={Icon} tone={meta.tone} />
+                            <div className="min-w-0">
+                              <div className="mb-2 flex flex-wrap items-center gap-2">
+                                <span className={`rounded-xl border px-2.5 py-1.5 text-xs font-semibold ${
+                                  isDone
+                                    ? "border-emerald-300/14 bg-emerald-500/10 text-emerald-200"
+                                    : isMissed
+                                      ? "border-rose-300/14 bg-rose-500/10 text-rose-200"
+                                      : "border-violet-300/14 bg-violet-500/10 text-violet-200"
+                                }`}>
+                                  {isDone ? t("statusDone") : isMissed ? t("statusMissed") : t("planned")}
+                                </span>
+                                {task.auto_generated ? <span className="rounded-xl border border-cyan-300/12 bg-cyan-500/10 px-2.5 py-1.5 text-xs font-semibold text-cyan-200">{t("tracker")}</span> : null}
+                              </div>
+                              <p className={`break-words text-lg font-bold transition duration-300 ease-out ${isDone ? "text-emerald-100/80" : isMissed ? "text-rose-100/85" : "text-[var(--app-text)]"}`}>{displayTitle}</p>
+                              <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                                <Clock3 size={14} /> {task.time}
+                                <span>{categoryLabel(task.category)}</span>
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap items-center gap-2">
+                            {tracker ? (
+                              <span className="rounded-2xl border border-amber-300/14 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-100">
+                                {tracker.streak} {t("streakDays")}
+                              </span>
+                            ) : null}
+                            {!isDone && !isMissed ? (
+                              <>
+                                <button type="button" onClick={() => openStatusModalWithChoice(taskKey(task), "completed")} className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-emerald-300/18 bg-emerald-500/10 px-3.5 text-xs font-semibold text-emerald-100 transition duration-300 hover:border-emerald-300/30 hover:bg-emerald-500/16 active:scale-[0.98]">{t("statusDone")}</button>
+                                <button type="button" onClick={() => openStatusModalWithChoice(taskKey(task), "missed")} className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-rose-300/18 bg-rose-500/10 px-3.5 text-xs font-semibold text-rose-100 transition duration-300 hover:border-rose-300/30 hover:bg-rose-500/16 active:scale-[0.98]">{t("statusMissed")}</button>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                        {linkedGoal ? (
+                          <div className="mt-5 rounded-2xl border border-cyan-300/10 bg-cyan-500/[0.045] p-4">
+                            <div className="mb-3 flex min-w-0 flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300/70">{t("linkedToGoal")}</p>
+                                <p className="mt-1 break-words font-semibold text-cyan-100">{linkedGoal.title}</p>
+                              </div>
+                              <p className="text-sm font-semibold text-cyan-200">{linkedGoal.current_value} / {linkedGoal.target_value} {linkedGoal.unit}</p>
+                            </div>
+                            <ProgressBar value={goalProgress(linkedGoal)} color={linkedGoal.completed ? "bg-emerald-400" : "bg-cyan-400"} />
+                            <div className="mt-3 grid gap-2 text-xs text-slate-400 sm:grid-cols-3">
+                              <span>{t("remaining")}: <span className="text-slate-200">{remainingAmount} {linkedGoal.unit}</span></span>
+                              <span>{linkedGoal.completed ? t("goalCompleted") : `~${estimatedDays} ${t("daysLeft")}`}</span>
+                              <span>{t("todayTarget")}: <span className="text-violet-200">+{plannedAmount} {linkedGoal.unit}</span></span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-5 rounded-2xl border border-violet-300/10 bg-white/[0.025] p-4 text-sm text-slate-400">
+                            {t("todayTarget")}: <span className="font-semibold text-violet-200">+{plannedAmount || tracker?.target_per_period || 1} {tracker?.unit ?? ""}</span>
+                          </div>
+                        )}
+                        <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2 text-xs">
+                          <span className="rounded-lg border border-fuchsia-300/10 bg-fuchsia-500/10 px-3 py-2 text-fuchsia-200">{priorityLabel(task.priority)}</span>
+                          {!isDone && !isMissed ? (
+                            <>
+                              <EditButton onClick={() => openEditTask(taskKey(task))} />
+                              <ConfirmDeleteButton onConfirm={() => handleDeleteTask(taskKey(task))} />
+                            </>
+                          ) : null}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+                {!visibleTasks.length ? (
+                  <EmptyState>
+                    <span className="block font-semibold text-slate-300">{t("emptyGrowthSystem")}</span>
+                    <span className="mt-1 block">{t("emptyGrowthSystemDescription")}</span>
+                  </EmptyState>
+                ) : null}
+              </div>
+            </LayoutGroup>
+            {tasks.length > 4 ? <ShowMoreButton expanded={expandedLists.tasks} onClick={() => setExpandedLists((current) => ({ ...current, tasks: !current.tasks }))} /> : null}
+          </Card>
+
+          <div className="hidden">
           <Card alive variant="plan">
             <h2 className="mb-5 text-xl font-bold">{t("tasks")}</h2>
             <LayoutGroup>
@@ -919,6 +1065,7 @@ export default function RejalarPage() {
             </LayoutGroup>
             {tasks.length > 4 ? <ShowMoreButton expanded={expandedLists.tasks} onClick={() => setExpandedLists((current) => ({ ...current, tasks: !current.tasks }))} /> : null}
           </Card>
+          </div>
 
           <Card variant="plan">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -951,6 +1098,7 @@ export default function RejalarPage() {
         </div>
 
         <div className="min-w-0 space-y-6">
+          <div className="hidden">
           <Card variant="plan">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-bold">{t("trackers")}</h2>
@@ -1019,6 +1167,7 @@ export default function RejalarPage() {
               </EmptyState>
             )}
           </Card>
+          </div>
 
           <Card alive variant="ai">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">

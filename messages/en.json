@@ -245,7 +245,21 @@
     "plannedProgress": "planned today +{amount} {unit}",
     "actualProgressDone": "+{amount} {unit} completed",
     "noProgressToday": "no progress today",
-    "thisWeekSummary": "This week: {completed} completed · {missed} missed"
+    "thisWeekSummary": "This week: {completed} completed · {missed} missed",
+    "todayGrowth": "Today's Growth",
+    "todayGrowthDescription": "Today's habits, tasks and goals in one operating view.",
+    "dailySystems": "Daily Systems",
+    "behavioralSystems": "Behavioral system",
+    "currentStreak": "Current streak",
+    "streakDays": "day streak",
+    "completedToday": "Completed today",
+    "missedToday": "Missed today",
+    "activeGoals": "Active goals",
+    "todayProgress": "Today's progress",
+    "planned": "Planned",
+    "todayTarget": "Today's target",
+    "emptyGrowthSystem": "No growth system has been created for today yet.",
+    "emptyGrowthSystemDescription": "Add a tracker or plan and it will appear here."
   },
   "mistakes": {
     "eyebrow": "Habit control",

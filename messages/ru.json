@@ -301,7 +301,21 @@
     "plannedProgress": "на сегодня запланировано +{amount} {unit}",
     "actualProgressDone": "+{amount} {unit} выполнено",
     "noProgressToday": "сегодня прогресса не было",
-    "thisWeekSummary": "На этой неделе: {completed} выполнено · {missed} missed"
+    "thisWeekSummary": "На этой неделе: {completed} выполнено · {missed} missed",
+    "todayGrowth": "Today's Growth",
+    "todayGrowthDescription": "Сегодняшние привычки, задачи и цели в одном рабочем виде.",
+    "dailySystems": "Daily Systems",
+    "behavioralSystems": "Поведенческая система",
+    "currentStreak": "Текущая серия",
+    "streakDays": "дней подряд",
+    "completedToday": "Выполнено сегодня",
+    "missedToday": "Пропущено сегодня",
+    "activeGoals": "Активные цели",
+    "todayProgress": "Прогресс сегодня",
+    "planned": "Запланировано",
+    "todayTarget": "Цель на сегодня",
+    "emptyGrowthSystem": "На сегодня система роста еще не создана.",
+    "emptyGrowthSystemDescription": "Добавьте трекер или план, и он появится здесь."
   },
   "mistakes": {
     "eyebrow": "???????? ????????",

@@ -245,7 +245,21 @@
     "plannedProgress": "bugun +{amount} {unit} rejalashtirilgan",
     "actualProgressDone": "+{amount} {unit} bajarildi",
     "noProgressToday": "bugun progress bo‘lmadi",
-    "thisWeekSummary": "Bu hafta: {completed} bajarildi · {missed} missed"
+    "thisWeekSummary": "Bu hafta: {completed} bajarildi · {missed} missed",
+    "todayGrowth": "Today's Growth",
+    "todayGrowthDescription": "Bugungi odatlar, tasklar va maqsadlar bir joyda.",
+    "dailySystems": "Daily Systems",
+    "behavioralSystems": "Behavioral system",
+    "currentStreak": "Current streak",
+    "streakDays": "kun ketma-ket",
+    "completedToday": "Bugun bajarildi",
+    "missedToday": "Bugun missed",
+    "activeGoals": "Active goals",
+    "todayProgress": "Bugungi progress",
+    "planned": "Planned",
+    "todayTarget": "Bugungi target",
+    "emptyGrowthSystem": "Bugungi growth system hali yaratilmagan.",
+    "emptyGrowthSystemDescription": "Tracker yoki reja qo‘shilgach shu yerda ko‘rinadi."
   },
   "mistakes": {
     "eyebrow": "Odatlar nazorati",
