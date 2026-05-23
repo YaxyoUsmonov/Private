@@ -202,6 +202,8 @@
     "currentValue": "Hozirgi qiymat",
     "unit": "Birlik",
     "unitPlaceholder": "kun, marta, soat, sahifa, $",
+    "customUnit": "Boshqa birlik",
+    "customUnitPlaceholder": "Masalan: daqiqa, litr, mashg‘ulot",
     "descriptionField": "Tavsif",
     "goalDescriptionPlaceholder": "Maqsad nima uchun muhimligini yozing",
     "markCompleted": "Bajarildi qilish",

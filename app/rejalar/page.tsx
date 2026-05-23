@@ -17,6 +17,13 @@ import { createItemId, taskKey } from "../utils/items";
 
 const chartColors = ["#c084fc", "#22c55e", "#f59e0b", "#a78bfa", "#64748b", "#38bdf8"];
 const MIN_STATUS_NOTE_CHARS = 10;
+const goalUnitOptions = ["kun", "marta", "soat", "sahifa", "$", "kg", "km", "dona", "boshqa"] as const;
+const recommendedGoalUnits: Record<string, string> = {
+  "Ta’lim": "sahifa",
+  Sport: "kun",
+  Moliya: "$",
+  Shaxsiy: "kun",
+};
 
 function countStatusNoteChars(value: string) {
   return value.trim().length;
@@ -82,6 +89,9 @@ export default function RejalarPage() {
   const [goalModalOpen, setGoalModalOpen] = useState(false);
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
   const [editingGoalKey, setEditingGoalKey] = useState<string | null>(null);
+  const [goalCategory, setGoalCategory] = useState("Shaxsiy");
+  const [goalUnit, setGoalUnit] = useState<string>("kun");
+  const [goalCustomUnit, setGoalCustomUnit] = useState("");
   const [statusTaskKey, setStatusTaskKey] = useState<string | null>(null);
   const [statusChoice, setStatusChoice] = useState<"completed" | "missed" | null>(null);
   const [statusNote, setStatusNote] = useState("");
@@ -155,17 +165,27 @@ export default function RejalarPage() {
 
   const openNewGoal = useCallback(() => {
     setEditingGoalKey(null);
+    setGoalCategory("Shaxsiy");
+    setGoalUnit(recommendedGoalUnits.Shaxsiy);
+    setGoalCustomUnit("");
     setGoalModalOpen(true);
   }, []);
 
   const openEditGoal = useCallback((key: string) => {
+    const goal = data.monthly_goals.find((item) => item.id === key);
     setEditingGoalKey(key);
+    setGoalCategory(goal?.category ?? "Shaxsiy");
+    setGoalUnit(goal?.unit && goalUnitOptions.includes(goal.unit as (typeof goalUnitOptions)[number]) ? goal.unit : "boshqa");
+    setGoalCustomUnit(goal?.unit && !goalUnitOptions.includes(goal.unit as (typeof goalUnitOptions)[number]) ? goal.unit : "");
     setGoalModalOpen(true);
-  }, []);
+  }, [data.monthly_goals]);
 
   const closeGoalModal = useCallback(() => {
     setGoalModalOpen(false);
     setEditingGoalKey(null);
+    setGoalCategory("Shaxsiy");
+    setGoalUnit(recommendedGoalUnits.Shaxsiy);
+    setGoalCustomUnit("");
   }, []);
 
   const handleSaveTask = useCallback((event: FormEvent<HTMLFormElement>) => {
@@ -198,6 +218,8 @@ export default function RejalarPage() {
     const now = new Date().toISOString();
     const targetValue = Math.max(1, Number(form.get("target_value") || 1));
     const currentValue = Math.max(0, Number(form.get("current_value") || 0));
+    const selectedUnit = String(form.get("unit") || "marta");
+    const customUnit = String(form.get("custom_unit") || "").trim();
     const nextGoal: MonthlyGoalItem = {
       id: editingGoal?.id ?? createItemId(),
       title: String(form.get("title") || "").trim(),
@@ -206,7 +228,7 @@ export default function RejalarPage() {
       type: "manual",
       target_value: targetValue,
       current_value: currentValue,
-      unit: String(form.get("unit") || "marta").trim() || "marta",
+      unit: selectedUnit === "boshqa" ? customUnit || "boshqa" : selectedUnit,
       month: editingGoal?.month ?? selectedMonth.month,
       year: editingGoal?.year ?? selectedMonth.year,
       completed: currentValue >= targetValue,
@@ -729,14 +751,35 @@ export default function RejalarPage() {
             </div>
             <div>
               <label className={labelClass}>{t("category")}</label>
-              <select name="category" className={fieldClass} defaultValue={editingGoal?.category ?? "Shaxsiy"}>
+              <select
+                name="category"
+                className={fieldClass}
+                value={goalCategory}
+                onChange={(event) => {
+                  const nextCategory = event.target.value;
+                  setGoalCategory(nextCategory);
+                  const recommendedUnit = recommendedGoalUnits[nextCategory];
+                  if (recommendedUnit) {
+                    setGoalUnit(recommendedUnit);
+                    setGoalCustomUnit("");
+                  }
+                }}
+              >
                 {goalCategoryOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </select>
             </div>
             <div>
               <label className={labelClass}>{t("unit")}</label>
-              <input name="unit" className={fieldClass} placeholder={t("unitPlaceholder")} defaultValue={editingGoal?.unit ?? "marta"} />
+              <select name="unit" className={fieldClass} value={goalUnit} onChange={(event) => setGoalUnit(event.target.value)}>
+                {goalUnitOptions.map((item) => <option key={item} value={item}>{item === "boshqa" ? c("other") : item}</option>)}
+              </select>
             </div>
+            {goalUnit === "boshqa" ? (
+              <div className="sm:col-span-2">
+                <label className={labelClass}>{t("customUnit")}</label>
+                <input name="custom_unit" className={fieldClass} placeholder={t("customUnitPlaceholder")} value={goalCustomUnit} onChange={(event) => setGoalCustomUnit(event.target.value)} />
+              </div>
+            ) : null}
             <div>
               <label className={labelClass}>{t("targetValue")}</label>
               <input name="target_value" type="number" min="1" step="1" className={fieldClass} defaultValue={editingGoal?.target_value ?? 1} required />

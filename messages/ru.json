@@ -258,6 +258,8 @@
     "currentValue": "Текущее значение",
     "unit": "Единица",
     "unitPlaceholder": "дни, разы, часы, страницы, $",
+    "customUnit": "Другая единица",
+    "customUnitPlaceholder": "Например: минуты, литры, тренировки",
     "descriptionField": "Описание",
     "goalDescriptionPlaceholder": "Напишите, почему эта цель важна",
     "markCompleted": "Отметить выполненной",

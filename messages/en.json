@@ -202,6 +202,8 @@
     "currentValue": "Current value",
     "unit": "Unit",
     "unitPlaceholder": "days, times, hours, pages, $",
+    "customUnit": "Custom unit",
+    "customUnitPlaceholder": "Example: minutes, liters, workouts",
     "descriptionField": "Description",
     "goalDescriptionPlaceholder": "Write why this goal matters",
     "markCompleted": "Mark completed",
