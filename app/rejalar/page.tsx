@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import { Book, Briefcase, CalendarCheck, Check, Clock3, Dumbbell, Plus, Target, Trophy, X } from "lucide-react";
@@ -11,7 +11,7 @@ import { DataState } from "../components/data-state";
 import { Card, ConfirmDeleteButton, DateInput, EditButton, EmptyState, fieldClass, IconBadge, labelClass, Modal, PageHeader, PrimaryButton, ProgressBar, ShowMoreButton, StatCard } from "../components/ui";
 import { useAppData } from "../hooks/use-app-data";
 import { useAiAnalysis } from "../hooks/use-ai-analysis";
-import type { MonthlyGoalItem, MonthlyGoalLastActivity, TaskItem } from "../../lib/app-data";
+import type { MonthlyGoalItem, MonthlyGoalLastActivity, TaskItem, TrackerActivity, TrackerItem } from "../../lib/app-data";
 import { isSameDate, shortDateLabel, todayISO } from "../utils/date";
 import { createItemId, taskKey } from "../utils/items";
 
@@ -127,6 +127,30 @@ function applyGoalTaskEvent(
   });
 }
 
+function upsertTrackerActivity(tracker: TrackerItem, event: TrackerActivity) {
+  return [
+    ...(tracker.activity_log ?? []).filter((entry) => entry.source_task_id !== event.source_task_id),
+    event,
+  ];
+}
+
+function applyTrackerTaskEvent(tracker: TrackerItem, event: TrackerActivity) {
+  const wasCompleted = (tracker.activity_log ?? []).some(
+    (entry) => entry.source_task_id === event.source_task_id && entry.status === "completed",
+  );
+  const nextStreak = event.status === "completed"
+    ? tracker.streak + (wasCompleted ? 0 : 1)
+    : 0;
+
+  return {
+    ...tracker,
+    streak: nextStreak,
+    longest_streak: Math.max(tracker.longest_streak ?? 0, nextStreak),
+    activity_log: upsertTrackerActivity(tracker, event),
+    updated_at: new Date().toISOString(),
+  };
+}
+
 function weeklyGoalStats(goal: MonthlyGoalItem, selectedDate: string) {
   const anchor = new Date(`${selectedDate}T00:00:00`);
   const start = new Date(anchor);
@@ -159,7 +183,7 @@ export default function RejalarPage() {
   const cat = useTranslations("categories");
   const priorityT = useTranslations("priority");
   const modals = useTranslations("modals");
-  const { data, loading, error, updateSection, updateData } = useAppData();
+  const { data, loading, error, hasLoaded, updateSection, updateData } = useAppData();
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const selectedMonth = useMemo(() => monthParts(selectedDate), [selectedDate]);
   const tasks = useMemo(
@@ -170,14 +194,17 @@ export default function RejalarPage() {
     () => data.monthly_goals.filter((goal) => goal.month === selectedMonth.month && goal.year === selectedMonth.year),
     [data.monthly_goals, selectedMonth.month, selectedMonth.year],
   );
+  const trackers = useMemo(() => data.trackers ?? [], [data.trackers]);
   const [modalOpen, setModalOpen] = useState(false);
   const [goalModalOpen, setGoalModalOpen] = useState(false);
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null);
   const [editingGoalKey, setEditingGoalKey] = useState<string | null>(null);
   const [goalCategory, setGoalCategory] = useState("Shaxsiy");
-  const [goalType, setGoalType] = useState<(typeof goalTypeOptions)[number]>("target");
+  const [goalType, setGoalType] = useState<(typeof goalTypeOptions)[number] | null>("target");
   const [goalUnit, setGoalUnit] = useState<string>("kun");
   const [goalCustomUnit, setGoalCustomUnit] = useState("");
+  const [trackerFrequency, setTrackerFrequency] = useState<TrackerItem["frequency"]>("daily");
+  const [trackerLinkedGoalId, setTrackerLinkedGoalId] = useState("");
   const [taskGoalLinkEnabled, setTaskGoalLinkEnabled] = useState(false);
   const [taskLinkedGoalId, setTaskLinkedGoalId] = useState("");
   const [goalFeedback, setGoalFeedback] = useState<string | null>(null);
@@ -186,7 +213,7 @@ export default function RejalarPage() {
   const [statusNote, setStatusNote] = useState("");
   const [statusWarning, setStatusWarning] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [expandedLists, setExpandedLists] = useState({ tasks: false, categories: false, goals: false });
+  const [expandedLists, setExpandedLists] = useState({ tasks: false, categories: false, goals: false, trackers: false });
   const plansAi = useAiAnalysis({ anchorDate: selectedDate, period: "week", scope: "plans" });
   const { completed, pending, progress } = useMemo(() => {
     const completedTasks = tasks.filter((task) => task.status === "Bajarildi").length;
@@ -210,6 +237,7 @@ export default function RejalarPage() {
     ? Math.round(monthlyGoals.reduce((sum, goal) => sum + goalProgress(goal), 0) / monthlyGoals.length)
     : 0;
   const visibleGoals = expandedLists.goals ? monthlyGoals : monthlyGoals.slice(0, 3);
+  const visibleTrackers = expandedLists.trackers ? trackers : trackers.slice(0, 3);
   const categories = useMemo(() => {
     const grouped = tasks.reduce<Record<string, number>>((acc, task) => {
       const key = task.category ? normalizeTaskCategory(task.category) : c("other");
@@ -223,6 +251,76 @@ export default function RejalarPage() {
       color: chartColors[index % chartColors.length],
     }));
   }, [c, tasks]);
+
+  useEffect(() => {
+    if (!hasLoaded || !trackers.length || !selectedDate) {
+      return;
+    }
+
+    const hasMissingDailyTracker = trackers.some((tracker) => (
+      tracker.frequency === "daily" &&
+      !data.tasks.some((task) => task.source_tracker_id === tracker.id && isSameDate(task.date, selectedDate))
+    ));
+
+    if (!hasMissingDailyTracker) {
+      return;
+    }
+
+    updateData((current) => {
+      const existingAutoTaskKeys = new Set(
+        current.tasks
+          .filter((task) => task.source_tracker_id && task.date)
+          .map((task) => `${task.source_tracker_id}:${task.date}`),
+      );
+      const now = new Date().toISOString();
+      const nextAutoTasks: TaskItem[] = [];
+
+      current.trackers.forEach((tracker) => {
+        if (tracker.frequency !== "daily" || !tracker.id) {
+          return;
+        }
+
+        const autoKey = `${tracker.id}:${selectedDate}`;
+        if (existingAutoTaskKeys.has(autoKey)) {
+          return;
+        }
+
+        const linkedGoal = tracker.linked_goal_id
+          ? current.monthly_goals.find((goal) => goal.id === tracker.linked_goal_id)
+          : null;
+        const plannedAmount = Math.max(1, Number(tracker.target_per_period) || 1);
+        nextAutoTasks.push({
+          id: createItemId(),
+          title: `Bugun ${plannedAmount} ${tracker.unit} ${tracker.title}`,
+          time: tracker.reminder_time || "09:00",
+          category: tracker.category,
+          priority: "Muhim",
+          status: "Kutilmoqda",
+          date: selectedDate,
+          linked_goal_id: linkedGoal?.id,
+          linked_goal_title: linkedGoal?.title,
+          goal_progress_increment: linkedGoal ? plannedAmount : 0,
+          planned_goal_increment: linkedGoal ? plannedAmount : 0,
+          actual_goal_increment: 0,
+          goal_progress_applied: false,
+          source_tracker_id: tracker.id,
+          auto_generated: true,
+        });
+      });
+
+      if (!nextAutoTasks.length) {
+        return current;
+      }
+
+      return {
+        ...current,
+        tasks: [...nextAutoTasks, ...current.tasks],
+        trackers: current.trackers.map((tracker) => nextAutoTasks.some((task) => task.source_tracker_id === tracker.id)
+          ? { ...tracker, updated_at: now }
+          : tracker),
+      };
+    });
+  }, [data.tasks, hasLoaded, selectedDate, trackers, updateData]);
 
   const editingTask = useMemo(
     () => editingTaskKey ? data.tasks.find((task) => taskKey(task) === editingTaskKey) : null,
@@ -262,9 +360,11 @@ export default function RejalarPage() {
   const openNewGoal = useCallback(() => {
     setEditingGoalKey(null);
     setGoalCategory("Shaxsiy");
-    setGoalType("target");
+    setGoalType(null);
     setGoalUnit(recommendedGoalUnits.Shaxsiy);
     setGoalCustomUnit("");
+    setTrackerFrequency("daily");
+    setTrackerLinkedGoalId("");
     setGoalModalOpen(true);
   }, []);
 
@@ -275,6 +375,8 @@ export default function RejalarPage() {
     setGoalType(goal?.goal_type ?? "target");
     setGoalUnit(goal?.unit && goalUnitOptions.includes(goal.unit as (typeof goalUnitOptions)[number]) ? goal.unit : "boshqa");
     setGoalCustomUnit(goal?.unit && !goalUnitOptions.includes(goal.unit as (typeof goalUnitOptions)[number]) ? goal.unit : "");
+    setTrackerFrequency("daily");
+    setTrackerLinkedGoalId("");
     setGoalModalOpen(true);
   }, [data.monthly_goals]);
 
@@ -285,6 +387,8 @@ export default function RejalarPage() {
     setGoalType("target");
     setGoalUnit(recommendedGoalUnits.Shaxsiy);
     setGoalCustomUnit("");
+    setTrackerFrequency("daily");
+    setTrackerLinkedGoalId("");
   }, []);
 
   const handleSaveTask = useCallback((event: FormEvent<HTMLFormElement>) => {
@@ -309,6 +413,8 @@ export default function RejalarPage() {
       planned_goal_increment: goalProgressIncrement,
       actual_goal_increment: editingTask?.linked_goal_id === linkedGoalId ? editingTask?.actual_goal_increment ?? 0 : 0,
       goal_progress_applied: editingTask?.linked_goal_id === linkedGoalId ? editingTask?.goal_progress_applied ?? false : false,
+      source_tracker_id: editingTask?.source_tracker_id,
+      auto_generated: editingTask?.auto_generated,
     };
     updateSection(
       "tasks",
@@ -331,18 +437,51 @@ export default function RejalarPage() {
     const selectedGoalType = String(form.get("goal_type") || "target") as MonthlyGoalItem["goal_type"];
     const dailyTarget = Math.max(0, Number(form.get("daily_target") || 0));
     const deadlineDate = String(form.get("deadline_date") || "");
+    const title = String(form.get("title") || "").trim();
+    const category = String(form.get("category") || "Shaxsiy");
+    const unit = selectedGoalType === "deadline" ? "%" : selectedUnit === "boshqa" ? customUnit || "boshqa" : selectedUnit;
+
+    if (!title) {
+      return;
+    }
+
+    if (selectedGoalType === "habit" && !editingGoal) {
+      const targetPerPeriod = Math.max(1, dailyTarget || targetValue);
+      const nextTracker: TrackerItem = {
+        id: createItemId(),
+        title,
+        category,
+        frequency: String(form.get("frequency") || "daily") as TrackerItem["frequency"],
+        target_per_period: targetPerPeriod,
+        unit,
+        reminder_time: String(form.get("reminder_time") || ""),
+        notes_enabled: true,
+        linked_goal_id: String(form.get("linked_goal_id") || "") || undefined,
+        streak: 0,
+        longest_streak: 0,
+        activity_log: [],
+        created_at: now,
+        updated_at: now,
+      };
+
+      updateSection("trackers", [nextTracker, ...data.trackers]);
+      closeGoalModal();
+      event.currentTarget.reset();
+      return;
+    }
+
     const resolvedTargetValue = selectedGoalType === "deadline" ? 100 : targetValue;
     const resolvedCurrentValue = Math.min(resolvedTargetValue, currentValue);
     const nextGoal: MonthlyGoalItem = {
       id: editingGoal?.id ?? createItemId(),
-      title: String(form.get("title") || "").trim(),
+      title,
       description: String(form.get("description") || "").trim(),
-      category: String(form.get("category") || "Shaxsiy"),
+      category,
       type: "manual",
       goal_type: selectedGoalType,
       target_value: resolvedTargetValue,
       current_value: resolvedCurrentValue,
-      unit: selectedGoalType === "deadline" ? "%" : selectedUnit === "boshqa" ? customUnit || "boshqa" : selectedUnit,
+      unit,
       deadline_date: deadlineDate,
       daily_target: selectedGoalType === "habit" ? dailyTarget : undefined,
       progress_percent: Math.min(100, Math.round((resolvedCurrentValue / Math.max(resolvedTargetValue, 1)) * 100)),
@@ -356,10 +495,6 @@ export default function RejalarPage() {
       updated_at: now,
     };
 
-    if (!nextGoal.title) {
-      return;
-    }
-
     updateSection(
       "monthly_goals",
       editingGoalKey
@@ -368,7 +503,7 @@ export default function RejalarPage() {
     );
     closeGoalModal();
     event.currentTarget.reset();
-  }, [closeGoalModal, data.monthly_goals, editingGoal, editingGoalKey, selectedMonth.month, selectedMonth.year, updateSection]);
+  }, [closeGoalModal, data.monthly_goals, data.trackers, editingGoal, editingGoalKey, selectedMonth.month, selectedMonth.year, updateSection]);
 
   const updateGoal = useCallback((key: string, updater: (goal: MonthlyGoalItem) => MonthlyGoalItem) => {
     updateSection(
@@ -449,6 +584,8 @@ export default function RejalarPage() {
       let goalValueDelta = 0;
       let goalId = "";
       let goalEvent: (MonthlyGoalLastActivity & { source_task_id: string; source_task_title: string; note: string }) | null = null;
+      let trackerId = "";
+      let trackerEvent: TrackerActivity | null = null;
       let linkedTask = current.tasks.find((task) => taskKey(task) === statusTaskKey) ?? null;
       const nextTasks: TaskItem[] = current.tasks.map((task) => {
         if (taskKey(task) !== statusTaskKey) {
@@ -475,6 +612,22 @@ export default function RejalarPage() {
             source_task_id: sourceTaskIdForGoal,
             source_task_title: task.title,
             note,
+          };
+        }
+        trackerId = task.source_tracker_id ?? "";
+        if (trackerId) {
+          const tracker = current.trackers.find((item) => item.id === trackerId);
+          trackerEvent = {
+            date: task.date || selectedDate,
+            status: eventStatus,
+            planned_amount: Math.max(0, Number(task.planned_goal_increment ?? task.goal_progress_increment ?? tracker?.target_per_period) || 0),
+            actual_amount: statusChoice === "completed"
+              ? Math.max(0, Number(task.planned_goal_increment ?? task.goal_progress_increment ?? tracker?.target_per_period) || 0)
+              : 0,
+            unit: tracker?.unit ?? "",
+            source_task_id: task.id ?? statusTaskKey,
+            note,
+            created_at: new Date().toISOString(),
           };
         }
         const nextTask: TaskItem = {
@@ -529,6 +682,9 @@ export default function RejalarPage() {
         monthly_goals: goalEvent
           ? current.monthly_goals.map((goal) => goal.id === goalId ? applyGoalTaskEvent(goal, goalEvent!, goalValueDelta) : goal)
           : current.monthly_goals,
+        trackers: trackerEvent
+          ? current.trackers.map((tracker) => tracker.id === trackerId ? applyTrackerTaskEvent(tracker, trackerEvent!) : tracker)
+          : current.trackers,
         journal: {
           ...current.journal,
           errors: statusChoice === "missed" && !existingMistake
@@ -768,6 +924,56 @@ export default function RejalarPage() {
         </div>
 
         <div className="min-w-0 space-y-6">
+          <Card variant="plan">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-bold">{t("trackers")}</h2>
+              <span className="rounded-2xl border border-violet-300/15 bg-violet-500/10 px-3.5 py-2 text-xs font-medium text-violet-200">{t("streak")}</span>
+            </div>
+            {trackers.length ? (
+              <div className="space-y-3">
+                {visibleTrackers.map((tracker) => {
+                  const linkedGoal = monthlyGoals.find((goal) => goal.id === tracker.linked_goal_id);
+                  const todayLog = (tracker.activity_log ?? []).find((entry) => isSameDate(entry.date, selectedDate));
+                  return (
+                    <div key={tracker.id} className="rounded-2xl border border-violet-300/12 bg-[linear-gradient(135deg,rgba(255,255,255,.045),rgba(124,58,237,.03))] p-4 transition duration-300 hover:-translate-y-0.5 hover:border-violet-300/20">
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="break-words font-semibold text-[var(--app-text)]">{tracker.title}</p>
+                          <p className="mt-1 text-xs text-slate-400">{tracker.target_per_period} {tracker.unit} · {t(`frequency_${tracker.frequency}`)}</p>
+                        </div>
+                        <span className="shrink-0 rounded-xl border border-emerald-300/12 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-semibold text-emerald-200">{tracker.streak} {t("streak")}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <span className="rounded-lg border border-violet-300/10 bg-violet-500/10 px-2.5 py-1.5 text-violet-200">{goalCategoryLabel(tracker.category)}</span>
+                        {linkedGoal ? <span className="rounded-lg border border-cyan-300/10 bg-cyan-500/10 px-2.5 py-1.5 text-cyan-200">{t("linkedToGoal")}: {linkedGoal.title}</span> : null}
+                        <span className={`rounded-lg border px-2.5 py-1.5 ${
+                          todayLog?.status === "completed"
+                            ? "border-emerald-300/10 bg-emerald-500/10 text-emerald-200"
+                            : todayLog?.status === "missed"
+                              ? "border-rose-300/10 bg-rose-500/10 text-rose-200"
+                              : "border-slate-300/10 bg-white/[0.035] text-slate-300"
+                        }`}>
+                          {todayLog?.status === "completed"
+                            ? t("actualProgressDone", { amount: todayLog.actual_amount, unit: todayLog.unit })
+                            : todayLog?.status === "missed"
+                              ? t("noProgressToday")
+                              : t("plannedProgress", { amount: tracker.target_per_period, unit: tracker.unit })}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-xs text-slate-500">{t("longestStreak")}: {tracker.longest_streak ?? tracker.streak}</p>
+                    </div>
+                  );
+                })}
+                {trackers.length > 3 ? <ShowMoreButton expanded={expandedLists.trackers} onClick={() => setExpandedLists((current) => ({ ...current, trackers: !current.trackers }))} /> : null}
+              </div>
+            ) : (
+              <EmptyState>
+                <span className="block font-semibold text-slate-300">{t("noTrackers")}</span>
+                <span className="mt-1 block">{t("noTrackersDescription")}</span>
+              </EmptyState>
+            )}
+          </Card>
+
           <Card alive variant="ai">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-bold">{t("monthlyGoals")}</h2>
@@ -981,6 +1187,30 @@ export default function RejalarPage() {
         description={t("monthlyGoalModalDescription")}
       >
         <form key={editingGoalKey ?? "new-goal"} onSubmit={handleSaveGoal} className="space-y-4">
+          {!editingGoal && !goalType ? (
+            <div className="grid gap-3">
+              <p className="text-sm font-semibold text-slate-200">{t("trackingQuestion")}</p>
+              {goalTypeOptions.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => {
+                    setGoalType(item);
+                    if (item === "deadline") {
+                      setGoalUnit("%");
+                    } else {
+                      setGoalUnit(recommendedGoalUnits[goalCategory] ?? "kun");
+                    }
+                  }}
+                  className="rounded-2xl border border-violet-300/14 bg-[linear-gradient(135deg,rgba(255,255,255,.055),rgba(124,58,237,.035))] p-4 text-left transition duration-300 hover:-translate-y-0.5 hover:border-violet-300/24 hover:bg-violet-500/10"
+                >
+                  <span className="block font-semibold text-[var(--app-text)]">{t(`goalType_${item}`)}</span>
+                  <span className="mt-1 block text-sm text-slate-400">{t(`goalTypeDescription_${item}`)}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className={labelClass}>{t("goalTitle")}</label>
@@ -991,7 +1221,7 @@ export default function RejalarPage() {
               <select
                 name="goal_type"
                 className={fieldClass}
-                value={goalType}
+                value={goalType ?? "target"}
                 onChange={(event) => {
                   const nextType = event.target.value as (typeof goalTypeOptions)[number];
                   setGoalType(nextType);
@@ -1042,8 +1272,31 @@ export default function RejalarPage() {
             {goalType === "habit" ? (
               <div>
                 <label className={labelClass}>{t("dailyTarget")}</label>
-                <input name="daily_target" type="number" min="0" step="1" className={fieldClass} defaultValue={editingGoal?.daily_target ?? 0} />
+                <input name="daily_target" type="number" min="1" step="1" className={fieldClass} defaultValue={editingGoal?.daily_target ?? 1} />
               </div>
+            ) : null}
+            {goalType === "habit" && !editingGoal ? (
+              <>
+                <div>
+                  <label className={labelClass}>{t("frequency")}</label>
+                  <select name="frequency" className={fieldClass} value={trackerFrequency} onChange={(event) => setTrackerFrequency(event.target.value as TrackerItem["frequency"])}>
+                    <option value="daily">{t("frequency_daily")}</option>
+                    <option value="weekly">{t("frequency_weekly")}</option>
+                    <option value="custom">{t("frequency_custom")}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>{t("reminderTime")}</label>
+                  <input name="reminder_time" type="time" className={fieldClass} defaultValue="09:00" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className={labelClass}>{t("linkToMonthlyGoal")}</label>
+                  <select name="linked_goal_id" className={fieldClass} value={trackerLinkedGoalId} onChange={(event) => setTrackerLinkedGoalId(event.target.value)}>
+                    <option value="">{t("selectGoal")}</option>
+                    {monthlyGoals.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
+                  </select>
+                </div>
+              </>
             ) : null}
             {goalType === "deadline" ? (
               <div>
@@ -1070,6 +1323,8 @@ export default function RejalarPage() {
               {c("cancel")}
             </button>
           </div>
+            </>
+          )}
         </form>
       </Modal>
 

@@ -27,6 +27,8 @@ export type TaskItem = {
   actual_goal_increment?: number;
   linked_goal_title?: string;
   goal_progress_applied?: boolean;
+  source_tracker_id?: string;
+  auto_generated?: boolean;
 };
 
 export type MonthlyGoalActivity = {
@@ -72,6 +74,34 @@ export type MonthlyGoalItem = {
   linked_task_ids?: string[];
   last_activity?: MonthlyGoalLastActivity | string;
   activity_log?: MonthlyGoalActivity[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type TrackerActivity = {
+  date: string;
+  status: "pending" | "completed" | "missed";
+  planned_amount: number;
+  actual_amount: number;
+  unit: string;
+  source_task_id?: string;
+  note?: string;
+  created_at?: string;
+};
+
+export type TrackerItem = {
+  id?: string;
+  title: string;
+  category: string;
+  frequency: "daily" | "weekly" | "custom";
+  target_per_period: number;
+  unit: string;
+  reminder_time?: string;
+  notes_enabled: boolean;
+  linked_goal_id?: string;
+  streak: number;
+  longest_streak?: number;
+  activity_log: TrackerActivity[];
   created_at: string;
   updated_at: string;
 };
@@ -156,6 +186,7 @@ export type AppData = {
   habits: HabitItem[];
   tasks: TaskItem[];
   monthly_goals: MonthlyGoalItem[];
+  trackers: TrackerItem[];
   streaks: StreaksData;
   journal: JournalData;
   settings: SettingsData;
@@ -168,6 +199,7 @@ export const defaultAppData: AppData = {
   habits: [],
   tasks: [],
   monthly_goals: [],
+  trackers: [],
   streaks: {
     current: 0,
     best: 0,
@@ -240,6 +272,8 @@ function sanitizeLegacyDemoData(data: AppData): AppData {
         Number(task.actual_goal_increment ?? (task.status === "Bajarildi" && task.goal_progress_applied ? task.goal_progress_increment : 0)) || 0,
       ),
       goal_progress_applied: Boolean(task.goal_progress_applied),
+      source_tracker_id: task.source_tracker_id ?? undefined,
+      auto_generated: Boolean(task.auto_generated),
     })),
     monthly_goals: (Array.isArray(data.monthly_goals) ? data.monthly_goals : []).map((goal) => {
       const targetValue = Math.max(1, Number(goal.target_value) || 1);
@@ -276,6 +310,23 @@ function sanitizeLegacyDemoData(data: AppData): AppData {
       conclusions: data.journal.conclusions ?? [],
       daily_summaries: data.journal.daily_summaries ?? [],
     },
+    trackers: (Array.isArray(data.trackers) ? data.trackers : []).map((tracker) => ({
+      ...tracker,
+      id: tracker.id ?? "",
+      title: tracker.title ?? "",
+      category: tracker.category ?? "Shaxsiy",
+      frequency: tracker.frequency ?? "daily",
+      target_per_period: Math.max(1, Number(tracker.target_per_period) || 1),
+      unit: tracker.unit ?? "marta",
+      reminder_time: tracker.reminder_time ?? "",
+      notes_enabled: tracker.notes_enabled ?? true,
+      linked_goal_id: tracker.linked_goal_id ?? undefined,
+      streak: Math.max(0, Number(tracker.streak) || 0),
+      longest_streak: Math.max(0, Number(tracker.longest_streak ?? tracker.streak) || 0),
+      activity_log: Array.isArray(tracker.activity_log) ? tracker.activity_log : [],
+      created_at: tracker.created_at ?? "",
+      updated_at: tracker.updated_at ?? "",
+    })),
     finance: {
       ...data.finance,
       transactions: isLegacyDemoFinance ? [] : transactions,
@@ -294,6 +345,7 @@ export function mergeAppData(data: Partial<AppData> | null | undefined): AppData
     profile_data: { ...defaultAppData.profile_data, ...data?.profile_data },
     finance: { ...defaultAppData.finance, ...data?.finance },
     monthly_goals: data?.monthly_goals ?? defaultAppData.monthly_goals,
+    trackers: data?.trackers ?? defaultAppData.trackers,
   });
 }
 
